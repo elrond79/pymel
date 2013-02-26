@@ -727,7 +727,11 @@ class ApiDocParser(object):
         return names, types, typeQualifiers, defaults
 
     def parseParamDef(self, typebuf, namebuf):
+        if not typebuf and not namebuf:
+            return None
         type, qualifiers = self.parseType(typebuf)
+        if type == 'void':
+            return None
 
         if not namebuf:
             argname = None
@@ -797,6 +801,8 @@ class ApiDocParser(object):
 
     def addParamDef(self, paramInfo, argNames, argTypes, typeQualifiers,
                     defaults, defaultName=None):
+        if paramInfo is None:
+            return
         argname = paramInfo['name']
         if argname is None and defaultName is not None:
             argname = defaultName
