@@ -526,26 +526,60 @@ def apiPymelWrapData(keepDocs=False, keepReturnQualifiers=True):
                 index = methodWrapInfo['index']
                 usedClassMethods = usedMethods.setdefault(apiClassName, {})
                 methodInfo = apiClassInfo[apiClassName]['methods'][methodName][index]
-
-                # copy the methodInfo, we (might be) modifying it
-                methodInfo = copy.deepcopy(methodInfo)
-                if not keepDocs:
-                    # the docs aren't really necessary for comparing
-                    # compatibility... get rid of them..
-                    methodInfo.pop('doc', None)
-                    for argData in methodInfo.get('argInfo', {}).itervalues():
-                        argData.pop('doc', None)
-                    methodInfo.get('returnInfo', {}).pop('doc', None)
-                if not keepReturnQualifiers:
-                    methodInfo.get('returnInfo', {}).pop('qualifiers', None)
                 usedClassMethods.setdefault(methodName, {})[index] = methodInfo
     return usedMethods
 
-def findApiWrapRegressions(oldWraps, newWraps):
+def findApiWrapRegressions(oldWraps, newWraps, docs=False,
+                           returnQualifiers=True, typeConversions=None):
     '''Given api wrap data from apiPymelWrapData for an old and new version,
     tries to find changes that would cause backwards-compatibility problems /
     regressions.
     '''
+    if docs or returnQualifiers or typeConversions:
+        # make copies, as we'll be modifying
+        oldWraps = copy.deepcopy(oldWraps)
+        newWraps = copy.deepcopy(newWraps)
+
+        for wraps in oldWraps, newWraps:
+            for cls, methodsDict in wraps.iteritems():
+                for method, overloadsDict in methodsDict.iteritems():
+                    for overloadIndex, methodInfo in overloadsDict.iteritems():
+                        if not docs:
+                            methodInfo.pop('doc', None)
+                            for argData in methodInfo.get('argInfo', {}).itervalues():
+                                argData.pop('doc', None)
+                            methodInfo.get('returnInfo', {}).pop('doc', None)
+                        if not returnQualifiers:
+                            methodInfo.get('returnInfo', {}).pop('qualifiers', None)
+                        if typeConversions:
+                            # argInfo
+                            for argInfo in methodInfo.get('argInfo', {}).itervalues():
+                                argType = argInfo.get('type')
+                                if argType in typeConversions:
+                                    argInfo['type'] = typeConversions[argType]
+                            # args
+                            args = methodInfo.get('args', [])
+                            for i, theseArgs in enumerate(args):
+                                argType = theseArgs[1]
+                                if argType in typeConversions:
+                                    theseArgs = list(theseArgs)
+                                    theseArgs[1] = typeConversions[argType]
+                                    args[i] = tuple(theseArgs)
+                            # returnInfo
+                            returnInfo = methodInfo.get('returnInfo', {})
+                            returnInfoType = returnInfo.get('type')
+                            if returnInfoType in typeConversions:
+                                returnInfo['type'] = typeConversions[returnInfoType]
+                            # returnType
+                            returnType = methodInfo.get('returnType')
+                            if returnType in typeConversions:
+                                methodInfo['returnType'] = typeConversions[returnType]
+                            # types
+                            types = methodInfo.get('types', {})
+                            for argName, argType in types.iteritems():
+                                if argType in typeConversions:
+                                    types[argName] = typeConversions[argType]
+
     def setClassProblem(className, issue):
         problems[className] = issue
 
