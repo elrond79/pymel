@@ -6,9 +6,9 @@ import plogging
 from pymel.mayautils import getMayaLocation
 
 try:
-    from pymel.util.external.BeautifulSoup import BeautifulSoup, NavigableString
+    from pymel.util.external.BeautifulSoup import BeautifulSoup, NavigableString, Comment
 except ImportError:
-    from BeautifulSoup import BeautifulSoup, NavigableString
+    from BeautifulSoup import BeautifulSoup, NavigableString, Comment
 from keyword import iskeyword as _iskeyword
 
 FLAGMODES = ('create', 'query', 'edit', 'multiuse')
@@ -397,8 +397,27 @@ class CommandModuleDocParser(HTMLParser):
                 #_logger.debug(cmd)
         except IndexError: return
 
+def findText(tag):
+    return [x.encode('ascii', 'ignore') for x in tag.findAll(text=True)
+            if not isinstance(x, Comment)]
+
+
 class ApiDocParser(object):
-    OBSOLETE_MSG = ['NO SCRIPT SUPPORT.', 'This method is not available in Python.']
+    class CurrentMethodSetter(object):
+        def __init__(self, apiDocParser, method):
+            self.apiDocParser = apiDocParser
+            self.method = method
+
+        def __enter__(self):
+            self.savedMethod = self.apiDocParser.currentMethod
+            self.apiDocParser.currentMethod = self.method
+
+        def __exit__(self, exc_type, exc_value, tb):
+            self.apiDocParser.currentMethod = self.savedMethod
+
+
+    OBSOLETE_MSGS = ['NO SCRIPT SUPPORT.', 'This method is not available in Python.']
+    OBSOLETE_RE = re.compile('|'.join(re.escape(x) for x in OBSOLETE_MSGS))
     DEPRECATED_MSG = ['This method is obsolete.', 'Deprecated:']
 
     # in enums with multiple keys per int value, which (pymel) key name to use
@@ -430,6 +449,9 @@ class ApiDocParser(object):
     def xprint(self, *args):
         if self.verbose:
             print self.formatMsg(*args)
+
+    def methodSetter(self, method):
+        return self.CurrentMethodSetter(self, method)
 
     def getPymelMethodNames(self):
 
@@ -665,7 +687,7 @@ class ApiDocParser(object):
     def parseType(self, tokens):
         i=0
         for i, each in enumerate(tokens):
-            if each not in [ '*', '&', 'const', 'unsigned']:
+            if each not in self.KNOWN_QUALIFIERS:
                 argtype = tokens.pop(i)
                 break
         else:
@@ -674,8 +696,7 @@ class ApiDocParser(object):
             # ... so it's implicitly an unsigned int
             argtype = 'int'
 
-        if 'unsigned' in tokens and argtype in ('char','int', 'int2',
-                                             'int3', 'int4'):
+        if 'unsigned' in tokens and argtype in self.UNSIGNED_PREFIX_TYPES:
             argtype = 'u' + argtype
 
         argtype = self.handleEnums(argtype)
@@ -686,78 +707,92 @@ class ApiDocParser(object):
         names=[]
         types ={}
         typeQualifiers={}
-        tmpTypes=[]
-        # TYPES
-        for paramtype in proto.findAll( 'td', **{'class':'paramtype'} ) :
+
+        for argNum, paramtype in enumerate(proto.findAll('td', 'paramtype')):
             buf = []
-            [ buf.extend(x.split()) for x in paramtype.findAll( text=True ) ] #if x.strip() not in ['', '*', '&', 'const', 'unsigned'] ]
-            buf = [ x.strip().encode('ascii', 'ignore') for x in buf if x.strip() ]
-            tmpTypes.append( self.parseType(buf) )
+            # TYPES
+            [ buf.extend(x.split()) for x in findText(paramtype) ] #if x.strip() not in ['', '*', '&', 'const', 'unsigned'] ]
+            typebuf = [ x.strip().encode('ascii', 'ignore') for x in buf if x.strip() ]
 
-        # ARGUMENT NAMES
-        i = 0
-        for paramname in  proto.findAll( 'td', **{'class':'paramname'} )  :
-            buf = [ x.strip().encode('ascii', 'ignore') for x in paramname.findAll( text=True ) if x.strip() not in['',','] ]
-            if not buf: continue
-            argname = buf[0]
-            data = buf[1:]
+            # ARGUMENT NAMES
+            paramname = paramtype.parent.find('td', 'paramname')
+            if paramname is None:
+                raise ValueError('error parsing %r - could not find paramname for %r' % (proto, paramtype))
 
-            type, qualifiers = tmpTypes[i]
-            default=None
-            joined = ''.join(data).strip()
+            namebuf = [ x.strip() for x in findText(paramname) if x.strip() not in['',','] ]
 
-            if joined:
-                joined = joined.encode('ascii', 'ignore')
-                # break apart into index and defaults :  '[3] = NULL'
-                brackets, default = re.search( '([^=]*)(?:\s*=\s*(.*))?', joined ).groups()
+            argname, type, qualifiers, default = self.parseParamDef(typebuf, namebuf)
 
-                if brackets:
-                    numbuf = re.split( r'\[|\]', brackets)
-                    if len(numbuf) > 1:
-                        # Note that these two args need to be cast differently:
-                        #   int2 foo;
-                        #   int bar[2];
-                        # ... so, instead of storing the type of both as
-                        # 'int2', we make the second one 'int__array2'
-                        type = type + '__array' + numbuf[1]
-                    else:
-                        print "this is not a bracketed number", repr(brackets), joined
-
-                if default is not None:
-                    try:
-                        # Constants
-                        default = {
-                            'true' : True,
-                            'false': False,
-                            'NULL' : None
-                        }[default]
-                    except KeyError:
-                        try:
-                            if type in ['int', 'uint','long', 'uchar']:
-                                default = int(default)
-                            elif type in ['float', 'double']:
-                                # '1.0 / 24.0'
-                                if '/' in default:
-                                    default = eval(default)
-                                # '1.0e-5F'  --> '1.0e-5'
-                                elif default.endswith('F'):
-                                    default = float(default[:-1])
-                                else:
-                                    default = float(default)
-                            else:
-                                default = self.handleEnumDefaults(default, type)
-                        except ValueError:
-                            default = self.handleEnumDefaults(default, type)
-                    # default must be set here, because 'NULL' may be set to back to None, but this is in fact the value we want
-                    self.xprint('DEFAULT', default)
-                    defaults[argname] = default
-
+            if argname is None:
+                argname = 'arg%d' % argNum
             types[argname] = type
             typeQualifiers[argname] = qualifiers
             names.append(argname)
-            i+=1
+            if default is not None:
+                defaults[argname] = default
         assert sorted(names) == sorted(types.keys()), 'name-type mismatch %s %s' %  (sorted(names), sorted(types.keys()) )
         return names, types, typeQualifiers, defaults
+
+    def parseParamDef(self, typebuf, namebuf):
+        type, qualifiers = self.parseType(typebuf)
+
+        if not namebuf:
+            argname = None
+            data = []
+        else:
+            argname = namebuf[0]
+            data = namebuf[1:]
+
+        default=None
+        joined = ''.join(data).strip()
+
+        if joined:
+            joined = joined.encode('ascii', 'ignore')
+            # break apart into index and defaults :  '[3] = NULL'
+            brackets, default = re.search( '([^=]*)(?:\s*=\s*(.*))?', joined ).groups()
+
+            if brackets:
+                numbuf = re.split( r'\[|\]', brackets)
+                if len(numbuf) > 1:
+                    # Note that these two args need to be cast differently:
+                    #   int2 foo;
+                    #   int bar[2];
+                    # ... so, instead of storing the type of both as
+                    # 'int2', we make the second one 'int__array2'
+                    type = type + '__array' + numbuf[1]
+                else:
+                    print "this is not a bracketed number", repr(brackets), joined
+
+            if default is not None:
+                try:
+                    # Constants
+                    default = {
+                        'true' : True,
+                        'false': False,
+                        'NULL' : None
+                    }[default]
+                except KeyError:
+                    try:
+                        if type in ['int', 'uint','long', 'uchar']:
+                            default = int(default)
+                        elif type in ['float', 'double']:
+                            # '1.0 / 24.0'
+                            if '/' in default:
+                                default = eval(default)
+                            # '1.0e-5F'  --> '1.0e-5'
+                            elif default.endswith('F'):
+                                default = float(default[:-1])
+                            else:
+                                default = float(default)
+                        else:
+                            default = self.handleEnumDefaults(default, type)
+                    except ValueError:
+                        default = self.handleEnumDefaults(default, type)
+                # default must be set here, because 'NULL' may be set to back to None, but this is in fact the value we want
+                self.xprint('DEFAULT', default)
+        return argname, type, qualifiers, default
+
+
 
     def parseEnums(self, proto):
         enumValues={}
@@ -797,17 +832,18 @@ class ApiDocParser(object):
                     }
         return enumInfo, pymelEnum
 
-    def isObsolete(self, proto):
-        # ARGUMENT DIRECTION AND DOCUMENTATION
-        addendum = proto.findNextSiblings( 'div', limit=1)[0]
-        #try: self.xprint( addendum.findAll(text=True ) )
-        #except: pass
+    def isProto(self, tag):
+        return tag.name == 'div' and dict(tag.attrs).get('class') == 'memproto'
 
-        #if addendum.findAll( text = re.compile( '(This method is obsolete.)|(Deprecated:)') ):
+    def isObsolete(self, tag):
+        # check if it's a 'proto' tag, in which case we need to check it's
+        # addendum sibling
+        if self.isProto(tag):
+            # ARGUMENT DIRECTION AND DOCUMENTATION
+            tag = tag.findNextSiblings( 'div', limit=1)[0]
 
-        if addendum.findAll( text=lambda x: x in self.OBSOLETE_MSG ):
+        if tag.find(text=self.OBSOLETE_RE):
             self.xprint( "OBSOLETE" )
-            self.currentMethod = None
             return True
         return False
 
@@ -826,7 +862,7 @@ class ApiDocParser(object):
 
         methodDoc = addendum.p
         if methodDoc:
-            methodDoc = ' '.join( methodDoc.findAll( text=True ) ).encode('ascii', 'ignore')
+            methodDoc = ' '.join( findText(methodDoc) )
         else:
             methodDoc = ''
 
@@ -865,8 +901,8 @@ class ApiDocParser(object):
 
                         tmpDirs.append(paramDir.find(text=True).encode('ascii', 'ignore'))
                         tmpNames.append(paramName.find(text=True).encode('ascii', 'ignore'))
-                        doc = ''.join(tds[2].findAll(text=True))
-                        tmpDocs.append(doc.encode('ascii', 'ignore'))
+                        doc = ''.join(findText(tds[2]))
+                        tmpDocs.append(doc)
             else:
                 for extraInfo in extraInfos:
                     for tr in extraInfo.findAll( 'tr'):
@@ -876,14 +912,14 @@ class ApiDocParser(object):
                         assert len(tds) == 3, "td list is unexpected length: %d" % len(tds)
 
                         tt = tds[0].find('tt')
-                        dir = tt.findAll( text=True, limit=1 )[0]
-                        tmpDirs.append(dir.encode('ascii', 'ignore'))
+                        dir = tt.find(text=True).encode('ascii', 'ignore')
+                        tmpDirs.append(dir)
 
-                        name = tds[1].findAll( text=True, limit=1 )[0]
-                        tmpNames.append(name.encode('ascii', 'ignore'))
+                        name = tds[1].find(text=True).encode('ascii', 'ignore')
+                        tmpNames.append(name)
 
-                        doc = ''.join(tds[2].findAll( text=True))
-                        tmpDocs.append(doc.encode('ascii', 'ignore'))
+                        doc = ''.join(findText(tds[2]))
+                        tmpDocs.append(doc)
 
             assert len(tmpDirs) == len(tmpNames) == len(tmpDocs), \
                 'names, types, and docs are of unequal lengths: %s vs. %s vs. %s' % (tmpDirs, tmpNames, tmpDocs)
@@ -924,28 +960,25 @@ class ApiDocParser(object):
 
             # Documentation for Return Values
             if returnType:
-                try:
-                    returnDocBuf = addendum.findAll( 'dl', limit=1, **{'class':'return'} )[0].findAll( text=True )
-                except IndexError:
-                    pass
-                else:
+                returnTag = addendum.find('dl', 'return')
+                if returnTag:
+                    returnDocBuf = findText(returnTag)
                     if returnDocBuf:
                         returnDoc = ''.join( returnDocBuf[1:] ).replace('\n\r', ' ').replace('\n', ' ').encode('ascii', 'ignore')
                     self.xprint(  'RETURN_DOC', repr(returnDoc)  )
         #assert len(names) == len(directions), "name lenght mismatch: %s %s" % (sorted(names), sorted(directions.keys()))
         return directions, docs, methodDoc, returnDoc, deprecated
 
-    TYPEDEF_RE = re.compile('^typedef(\s|$)')
-
-    def getMethodNameAndOutput(self, proto):
-        # NAME AND RETURN TYPE
+    def getMethodNameAndOutputFromProto(self, proto):
         memb = proto.find( 'td', **{'class':'memname'} )
         buf = []
-        for text in memb.findAll(text=True):
-            text = text.strip().encode('ascii', 'ignore')
-            buf.extend(text.split())
-        buf = [x for x in buf if x not in ['const', 'unsigned'] and x]
+        for text in findText(memb):
+            text = text.strip()
+            buf.extend(x for x in text.split() if x)
+        return self.getMethodNameAndOutputFromToks(buf)
 
+    TYPEDEF_RE = re.compile('^typedef(\s|$)')
+    def getMethodNameAndOutputFromToks(self, buf):
         assert buf, "could not parse a method name"
 
         methodName = returnType = returnQualifiers = None
@@ -988,13 +1021,250 @@ class ApiDocParser(object):
             path = os.path.join(apiBase, 'cpp_ref', filename)
         return path
 
-    def parseMethod(self, proto):
-        methodName, returnType, returnQualifiers = self.getMethodNameAndOutput(proto)
+    # parse the method summary as a 'backup' for the parsing of the full
+    # method descriptions, as sometimes methods will have a summary, but no
+    # full description
+    def parseMethodSummaries(self):
+        if self.doxygenVersion >= (1,7):
+            summaries = self.soup.find('table', 'memberdecls')
+        else:
+            summaries = self.soup.find('div', 'contents').find('table')
+
+        for summary in summaries.findAll('tr', recursive=False):
+            self.parseMethodSummary(summary)
+
+    IDENTIFIER = r'[a-zA-Z_][0-9a-zA-Z_]*'
+    NESTED_IDENTIFIER = '(?:%(id)s::)*%(id)s' % {'id':IDENTIFIER}
+    NESTED_IDENTIFIER_RE = re.compile(r'^%s$' % NESTED_IDENTIFIER)
+    ARG_DEF_SPLIT_RE = re.compile(r'((?:%s)|\S)|\s+' % NESTED_IDENTIFIER)
+    METHOD_NAME_ARGS_RE = re.compile(r'([^(]*)\s*\(([^)]*)\)')
+
+    # Really, should get a real c++ parser at some point...
+    SPECIFIERS = ('auto', 'register',  'static', 'extern', 'mutable', 'friend',
+                  'typedef', 'enum', 'typename', 'const', 'volatile',
+                  'signed', 'unsigned',)
+
+    # can't support C++0x - 'auto' must be EITHER a specifier OR a base_type,
+    # not both...
+    BASE_TYPES = ('char',
+                  'wchar_t',
+                  'bool',
+                  'short',
+                  'int',
+                  'long',
+                  'signed',
+                  'unsigned',
+                  'float',
+                  'double',
+                  'void',
+#                  'auto',     #C++0x
+#                  'char16_t', #C++0x
+#                  'char32_t', #C++0x
+                 )
+
+    UNSIGNED_PREFIX_TYPES = ('char', 'int', 'int2', 'int3', 'int4')
+
+    KNOWN_QUALIFIERS = ('*', '&', 'const', 'unsigned')
+
+    def parseMethodSummary(self, summary):
+        methodReturn = summary.find('td', 'memItemLeft', recursive=False)
+        methodRest = summary.find('td', 'memItemRight', recursive=False)
+        if None in (methodReturn, methodRest):
+            return
+
+        # split the return portion by whitespace and ampersands (including the
+        # ampersand in the final result)
+        returnText = ' '.join(findText(methodReturn))
+        returnBuf = self.ARG_DEF_SPLIT_RE.split(returnText)
+        returnBuf = [x.strip() for x in returnBuf if x and x.strip()]
+        static = False
+        if 'static' in returnBuf:
+            static = True
+            returnBuf.remove('static')
+
+
+        # Now, split methodRest into the method name and the args
+        restText = ' '.join(findText(methodRest))
+
+        methodMatch = self.METHOD_NAME_ARGS_RE.match(restText)
+        if methodMatch is None:
+            # we have an enum def, or a class def, or a typedef, etc... ignore...
+            return
+        methodName, args = methodMatch.groups()
+        methodName = methodName.strip()
+
+        if not methodName:
+            raise ValueError('could not parse method name from summary: %s' % summary)
+
+        # run getMethodNameAndOutputFromToks before setting currentMethod, as it
+        # may be transformed - ie, if we have an operator, etc...
+        returnNameBuf = returnBuf + [methodName]
+        methodName, returnType, returnQualifiers = self.getMethodNameAndOutputFromToks(returnNameBuf)
         if methodName is None:
             return
-        # convert to unicode
-        self.currentMethod = str(methodName)
-        try:
+
+        # The original motivation for using the "declarations"/"summaries"
+        # section of the docs was that, when autodesk moved to the new doxygen
+        # format in 2012, some methods that used to have "full" descriptions
+        # (ie, MBoundingBox.clear, MFnParticleSet.age, etc) no longer did... and
+        # only had "summaries".  Because of backwards compatibility reasons, we
+        # could not eliminate these methods, and needed some way to ensure that
+        # the methods could still be parsed...
+        #
+        # We may eventually decide to expand the use of the summaries to fill
+        # in more cases...? ie, additional overloads...?
+        #
+        # ..for now, we only use it it to fill in methods that have NO
+        # overloads after parsing the "full" descriptions...
+        if methodName in self.methods:
+            return
+
+        with self.methodSetter(methodName):
+            if returnType == 'enum':
+                # ignore enum declarations - don't know of any cases where an enum
+                # appears in the declaration, but has no "full description"
+                return
+
+            argNames, argTypes, typeQualifiers, defaults = self.parseMethodSummaryArgs(args)
+
+            descTag = summary.findNextSibling('tr').find('td', 'mdescRight')
+            if descTag:
+                if self.isObsolete(descTag):
+                    return
+                methodDoc = ''.join(findText(descTag))
+            else:
+                methodDoc = ''
+
+            deprecated = False
+            returnDoc = ''
+            directions = {}
+            docs = {}
+
+            _logger.debug("Added method from method summary/declaration: %s.%s" % (self.apiClassName, methodName))
+            self.addMethod(methodName, methodDoc, static, deprecated,
+                           returnType, returnQualifiers, returnDoc, argNames,
+                           argTypes, typeQualifiers, defaults, directions, docs)
+
+
+    def parseMethodSummaryArgs(self, args):
+        argNames = []
+        argTypes = {}
+        typeQualifiers = {}
+        defaults = {}
+
+        if args:
+            for argNum, argText in enumerate(args.split(',')):
+                argBuf = [x.strip() for x in self.ARG_DEF_SPLIT_RE.split(argText)
+                          if x and x.strip()]
+
+                # Now have the hard job of figuring out which portion is the
+                # parameter type, and which the name
+                #
+                # This is made harder because, in the declaration, the name
+                # may not be specified! ie, consider these two:
+                #   int myVal
+                #   const int
+                # The only way to tell that the first gives a type and a name,
+                # and the second only a type, is by using information about
+                # 'known' modifiers...
+                baseTypeIndex = None
+                # need to treat 'unsigned' special, since it can be both
+                # a specier, or a baseType
+                specifierOrTypeIndices = []
+                possibleNameIndices = []
+                for i, tok in enumerate(argBuf):
+                    if tok == '=':
+                        # if we find an equals sign, then we have a 'default'
+                        # assignment, ie:
+                        #    myFunc(int myParam=3.0f)
+                        # ...and we can stop, as both the type and name come
+                        # before this...
+                        break
+                    if tok in self.SPECIFIERS:
+                        if tok in self.BASE_TYPES:
+                            specifierOrTypeIndices.append(i)
+                        continue
+                    elif tok in self.BASE_TYPES:
+                        if baseTypeIndex is not None:
+                            raise ValueError('error parsing argText %r - found two types, %s and %s' % (argText,
+                                                                                                        argBuf[baseTypeIndex],
+                                                                                                        tok))
+                        baseTypeIndex = i
+                    elif self.NESTED_IDENTIFIER_RE.match(tok):
+                        possibleNameIndices.append(i)
+
+                # if we have objects which can be specifiers OR
+                # base-types, see if they're a base-type
+                #
+                # technically, this is a guess, since if you have:
+                #    myFunc(unsigned foo)
+                # ... this would NORMALLY mean an arg named "foo", of type
+                # int... but if you had previously done:
+                #    typedef int foo
+                # ...then it would be an unnamed arg, of type "unsigned foo"
+
+                # however, for practical purposes, we can assume that if we
+                # have "unsigned foo", since foo is not a base type, it is
+                # probably a name...
+                if specifierOrTypeIndices and not baseTypeIndex:
+                    baseTypeIndex = specifierOrTypeIndices[-1]
+
+                if baseTypeIndex is not None:
+                    if not possibleNameIndices:
+                        # only found a type, no name!
+                        nameIndex = None
+                    elif len(possibleNameIndices) == 1:
+                        nameIndex = possibleNameIndices[0]
+                    else:
+                        raise ValueError('error parsing argText %r - found too '
+                                         'many possible names: %s, %s, ...'
+                                         % (argText,
+                                            argBuf[possibleNameIndices[0]],
+                                            argBuf[possibleNameIndices[1]]))
+                else:
+                    if not possibleNameIndices:
+                        raise ValueError('error parsing argText %r - found no '
+                                         'possible types or names' % argText)
+                    elif len(possibleNameIndices) == 1:
+                        # only found a type, no name!
+                        nameIndex = None
+                    elif len(possibleNameIndices) == 2:
+                        nameIndex = possibleNameIndices[1]
+                    else:
+                        raise ValueError('error parsing argText %r - found too '
+                                         'many possible types/names: %s, %s, %s, ...'
+                                         % (argText,
+                                            argBuf[possibleNameIndices[0]],
+                                            argBuf[possibleNameIndices[1]],
+                                            argBuf[possibleNameIndices[2]]))
+                if nameIndex is None:
+                    typeToks = argBuf
+                    nameToks = ['arg%d' %  argNum]
+                else:
+                    typeToks = argBuf[:nameIndex]
+                    nameToks = argBuf[nameIndex:]
+
+                # ok, we've finally split into the type/name portions... can
+                # now call parseParamDef
+                argname, type, qualifiers, default = self.parseParamDef(typeToks, nameToks)
+
+                argTypes[argname] = type
+                typeQualifiers[argname] = qualifiers
+                argNames.append(argname)
+                if default is not None:
+                    defaults[argname] = default
+        return argNames, argTypes, typeQualifiers, defaults
+
+    def parseFullMethods(self):
+        for proto in self.soup.body.findAll('div', 'memproto'):
+            self.parseFullMethod(proto)
+
+    def parseFullMethod(self, proto):
+        methodName, returnType, returnQualifiers = self.getMethodNameAndOutputFromProto(proto)
+        if methodName is None:
+            return
+
+        with self.methodSetter(methodName):
             if self.currentMethod == 'void(*':
                 return
             # ENUMS
@@ -1041,75 +1311,81 @@ class ApiDocParser(object):
                     _logger.error(self.formatMsg(traceback.format_exc()))
                     return
 
-                argInfo={}
-                argList=[]
-                inArgs=[]
-                outArgs=[]
+                return self.addMethod(methodName, methodDoc, static, deprecated,
+                                      returnType, returnQualifiers, returnDoc,
+                                      names, types, typeQualifiers, defaults,
+                                      directions, docs)
 
-                for argname in names[:] :
-                    type = types[argname]
-                    if argname not in directions:
-                        self.xprint("Warning: assuming direction is 'in'")
-                        directions[argname] = 'in'
-                    direction = directions[argname]
-                    doc = docs.get( argname, '')
+    def addMethod(self, methodName, methodDoc, static, deprecated, returnType,
+                  returnQualifiers, returnDoc, names, types, typeQualifiers,
+                  defaults, directions, docs):
+        with self.methodSetter(methodName):
+            argInfo={}
+            argList=[]
+            inArgs=[]
+            outArgs=[]
 
-                    if type == 'MStatus':
-                        types.pop(argname)
-                        defaults.pop(argname,None)
-                        directions.pop(argname,None)
-                        docs.pop(argname,None)
-                        idx = names.index(argname)
-                        names.pop(idx)
+            for argname in names[:] :
+                type = types[argname]
+                if argname not in directions:
+                    self.xprint("Warning: assuming direction is 'in'")
+                    directions[argname] = 'in'
+                direction = directions[argname]
+                doc = docs.get( argname, '')
+
+                if type == 'MStatus':
+                    types.pop(argname)
+                    defaults.pop(argname,None)
+                    directions.pop(argname,None)
+                    docs.pop(argname,None)
+                    idx = names.index(argname)
+                    names.pop(idx)
+                else:
+                    if direction == 'in':
+                        inArgs.append(argname)
                     else:
-                        if direction == 'in':
-                            inArgs.append(argname)
-                        else:
-                            outArgs.append(argname)
-                        argInfo[ argname ] = {'type': type, 'doc': doc }
+                        outArgs.append(argname)
+                    argInfo[ argname ] = {'type': type, 'doc': doc }
 
-                # correct bad outputs
-                if self.isGetMethod() and not returnType and not outArgs:
-                    for argname in names:
-                        if '&' in typeQualifiers[argname]:
-                            doc = docs.get(argname, '')
-                            directions[argname] = 'out'
-                            idx = inArgs.index(argname)
-                            inArgs.pop(idx)
-                            outArgs.append(argname)
-
-                            _logger.warn( "%s.%s(%s): Correcting suspected output argument '%s' because there are no outputs and the method is prefixed with 'get' ('%s')" % (
-                                                                           self.apiClassName,self.currentMethod, ', '.join(names), argname, doc))
-
-                # now that the directions are correct, make the argList
+            # correct bad outputs
+            if self.isGetMethod() and not returnType and not outArgs:
                 for argname in names:
-                    type = types[argname]
-                    self.xprint( "DIRECTIONS", directions )
-                    direction = directions[argname]
-                    data = ( argname, type, direction)
-                    self.xprint( "ARG", data )
-                    argList.append(  data )
+                    if '&' in typeQualifiers[argname]:
+                        doc = docs.get(argname, '')
+                        directions[argname] = 'out'
+                        idx = inArgs.index(argname)
+                        inArgs.pop(idx)
+                        outArgs.append(argname)
 
-                methodInfo = { 'argInfo': argInfo,
-                              'returnInfo' : {'type' : returnType,
-                                              'doc' : returnDoc,
-                                              'qualifiers' : returnQualifiers},
-                              'args' : argList,
-                              'returnType' : returnType,
-                              'inArgs' : inArgs,
-                              'outArgs' : outArgs,
-                              'doc' : methodDoc,
-                              'defaults' : defaults,
-                              #'directions' : directions,
-                              'types' : types,
-                              'static' : static,
-                              'typeQualifiers' : typeQualifiers,
-                              'deprecated' : deprecated }
-                self.methods[self.currentMethod].append(methodInfo)
-                return methodInfo
-        finally:
-            # reset
-            self.currentMethod=None
+                        _logger.warn( "%s.%s(%s): Correcting suspected output argument '%s' because there are no outputs and the method is prefixed with 'get' ('%s')" % (
+                                                                       self.apiClassName,self.currentMethod, ', '.join(names), argname, doc))
+
+            # now that the directions are correct, make the argList
+            for argname in names:
+                type = types[argname]
+                self.xprint( "DIRECTIONS", directions )
+                direction = directions[argname]
+                data = ( argname, type, direction)
+                self.xprint( "ARG", data )
+                argList.append(  data )
+
+            methodInfo = { 'argInfo': argInfo,
+                          'returnInfo' : {'type' : returnType,
+                                          'doc' : returnDoc,
+                                          'qualifiers' : returnQualifiers},
+                          'args' : argList,
+                          'returnType' : returnType,
+                          'inArgs' : inArgs,
+                          'outArgs' : outArgs,
+                          'doc' : methodDoc,
+                          'defaults' : defaults,
+                          #'directions' : directions,
+                          'types' : types,
+                          'static' : static,
+                          'typeQualifiers' : typeQualifiers,
+                          'deprecated' : deprecated }
+            self.methods[self.currentMethod].append(methodInfo)
+            return methodInfo
 
     def setClass(self, apiClassName):
         self.enums = {}
@@ -1130,8 +1406,8 @@ class ApiDocParser(object):
 
     def parse(self, apiClassName):
         self.setClass(apiClassName)
-        for proto in self.soup.body.findAll( 'div', **{'class':'memproto'} ):
-            self.parseMethod(proto)
+        self.parseFullMethods()
+        self.parseMethodSummaries()
         pymelNames, invertibles = self.getPymelMethodNames()
         return { 'methods' : dict(self.methods),
                  'enums' : self.enums,
