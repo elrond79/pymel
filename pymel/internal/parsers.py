@@ -721,15 +721,8 @@ class ApiDocParser(object):
 
             namebuf = [ x.strip() for x in findText(paramname) if x.strip() not in['',','] ]
 
-            argname, type, qualifiers, default = self.parseParamDef(typebuf, namebuf)
-
-            if argname is None:
-                argname = 'arg%d' % argNum
-            types[argname] = type
-            typeQualifiers[argname] = qualifiers
-            names.append(argname)
-            if default is not None:
-                defaults[argname] = default
+            self.addParamDef(self.parseParamDef(typebuf, namebuf), names, types,
+                             typeQualifiers, defaults, defaultName='arg%d' % argNum)
         assert sorted(names) == sorted(types.keys()), 'name-type mismatch %s %s' %  (sorted(names), sorted(types.keys()) )
         return names, types, typeQualifiers, defaults
 
@@ -745,6 +738,11 @@ class ApiDocParser(object):
 
         default=None
         joined = ''.join(data).strip()
+
+        # need to return a dict, because we need a way to NOT return a default
+        # ...ie, differentiate between no default specified, and a default
+        # which WAS given, but evaluates to None
+        results = {}
 
         if joined:
             joined = joined.encode('ascii', 'ignore')
@@ -790,9 +788,23 @@ class ApiDocParser(object):
                         default = self.handleEnumDefaults(default, type)
                 # default must be set here, because 'NULL' may be set to back to None, but this is in fact the value we want
                 self.xprint('DEFAULT', default)
-        return argname, type, qualifiers, default
+                results['default'] = default
 
+        results['name'] = argname
+        results['type'] = type
+        results['qualifiers'] = qualifiers
+        return results
 
+    def addParamDef(self, paramInfo, argNames, argTypes, typeQualifiers,
+                    defaults, defaultName=None):
+        argname = paramInfo['name']
+        if argname is None and defaultName is not None:
+            argname = defaultName
+        argTypes[argname] = paramInfo['type']
+        typeQualifiers[argname] = paramInfo['qualifiers']
+        argNames.append(argname)
+        if 'default' in paramInfo:
+            defaults[argname] = paramInfo['default']
 
     def parseEnums(self, proto):
         enumValues={}
@@ -1246,13 +1258,8 @@ class ApiDocParser(object):
 
                 # ok, we've finally split into the type/name portions... can
                 # now call parseParamDef
-                argname, type, qualifiers, default = self.parseParamDef(typeToks, nameToks)
-
-                argTypes[argname] = type
-                typeQualifiers[argname] = qualifiers
-                argNames.append(argname)
-                if default is not None:
-                    defaults[argname] = default
+                self.addParamDef(self.parseParamDef(typeToks, nameToks),
+                                 argNames, argTypes, typeQualifiers, defaults)
         return argNames, argTypes, typeQualifiers, defaults
 
     def parseFullMethods(self):
