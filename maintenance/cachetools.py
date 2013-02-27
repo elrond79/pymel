@@ -517,7 +517,7 @@ def apiPymelWrapData(keepDocs=False, keepReturnQualifiers=True):
 
     apiClassInfo = factories.apiClassInfo
     usedMethods = {}
-    for apiClassName, classMethods in factories._apiMethodWraps.iteritems():
+    for apiClassName, classMethods in factories._wrappedApiMethods.iteritems():
         for methodName, methodWraps in classMethods.iteritems():
             for methodWrapInfo in methodWraps:
                 func = methodWrapInfo['funcRef']

@@ -776,7 +776,7 @@ def fixCallbacks(inFunc, commandFlags, funcName=None ):
             newargs = tuple(newargs)
             try:
                 res = origCallback( *newargs )
-            except Exception, e:
+            except Exception:
                 # if origCallback was ITSELF a Callback obj, it will have
                 # already logged the error..
                 if not isinstance(origCallback, Callback):
@@ -930,7 +930,7 @@ def functionFactory( funcNameOrObject, returnFunc=None, module=None, rename=None
                 elif res:
                     try:
                         res = returnFunc( res )
-                    except Exception, e:
+                    except Exception:
                         pass
             return res
         newFunc = newFuncWithReturnFunc
@@ -1341,7 +1341,7 @@ class ApiTypeRegister(object):
                     try:
                         # automatically handle array types that correspond to this api type (e.g.  MColor and MColorArray )
                         arrayTypename = apiTypeName + 'Array'
-                        apiArrayType = getattr( api, arrayTypename )
+                        #apiArrayType = getattr( api, arrayTypename )
                         # e.g.  'MColorArray', Color, api.MColor
                         ApiTypeRegister.register(arrayTypename, pymelType, apiArrayItemType=apiType)
                     except AttributeError:
@@ -1377,11 +1377,7 @@ class ApiArgUtil(object):
             except KeyError:
                 raise TypeError, "method %s of %s cannot be found" % (methodName, apiClassName)
             else:
-                for i, methodInfo in enumerate( methodInfoList ):
-
-                    #argInfo = methodInfo['argInfo']
-
-                    #argList = methodInfo['args']
+                for i in xrange(len(methodInfoList)):
                     argHelper = ApiArgUtil(apiClassName, methodName, i)
 
                     if argHelper.canBeWrapped() :
@@ -1528,7 +1524,7 @@ class ApiArgUtil(object):
         pymelName = self.methodInfo.get('pymelName',self.methodName)
         try:
             pymelClassName = apiClassNamesToPyNodeNames[self.apiClassName]
-            pymelName, data = _getApiOverrideNameAndData( pymelClassName, pymelName )
+            pymelName = _getApiOverrideNameAndData( pymelClassName, pymelName )[0]
         except KeyError:
             pass
         return pymelName
@@ -1718,8 +1714,7 @@ class ApiArgUtil(object):
         defaults = []
         defaultInfo = self.methodInfo['defaults']
         inArgs = self.methodInfo['inArgs']
-        nargs = len(inArgs)
-        for i, arg in enumerate( inArgs ):
+        for arg in inArgs:
             if arg in defaultInfo:
                 default = defaultInfo[arg]
 
@@ -1966,8 +1961,21 @@ class ApiRedoUndoItem(ApiUndoItem):
         self._undoer(*self._undo_args, **self._undo_kwargs)
 
 _DEBUG_API_WRAPS = False
+
+# Stores information about which objects on a given pynode are wraps. Used
+# when building wraps (ie, to see if a given method has already been wrapped
+# by a parent class)
+_pyNodeApiWraps = {}
+
 if _DEBUG_API_WRAPS:
-    _apiMethodWraps = {}
+    # Provides information on which api-method-overloads were actually wrapped,
+    # at some point; useful for comparing information between different versions
+    # of pymel, different caches, etc - ie, to see if there has been a change
+    # in the api caches that will make a difference / cause a regression
+    #
+    # Only needed for manual comparisons, so not supplied unless
+    # DEBUG_API_WRAPS is on
+    _wrappedApiMethods = {}
 
 def wrapApiMethod( apiClass, methodName, newName=None, proxy=True, overloadIndex=None ):
     """
@@ -2019,6 +2027,11 @@ def wrapApiMethod( apiClass, methodName, newName=None, proxy=True, overloadIndex
 
 
         """
+    origArgs = {'apiClass':apiClass,
+                'methodName':methodName,
+                'newName':newName,
+                'proxy':proxy,
+                'overloadIndex':overloadIndex}
 
     #getattr( api, apiClassName )
 
@@ -2195,12 +2208,21 @@ def wrapApiMethod( apiClass, methodName, newName=None, proxy=True, overloadIndex
         global _DEBUG_API_WRAPS
         if _DEBUG_API_WRAPS:
             import weakref
-            global _apiMethodWraps
-            classWraps = _apiMethodWraps.setdefault(apiClassName, {})
+            global _wrappedApiMethods
+            classWraps = _wrappedApiMethods.setdefault(apiClassName, {})
             methodWraps = classWraps.setdefault(methodName, [])
             methodWraps.append({'index':argHelper.methodIndex,
                                 'funcRef':weakref.ref(wrappedApiFunc),
                                })
+
+        # unfortunately, have to install wrap info BEFORE turning into a
+        # classmethod, because you can't attach arbitrary attributes to a
+        # classmethod...
+        wrapInfo = {'args':origArgs,
+                    'pymelName':pymelName,
+                    'overloadIndex':overloadIndex
+                   }
+        wrappedApiFunc._pymel_wrapApiMethod_info = wrapInfo
 
         # do the debug stuff before turning into a classmethod, because you
         # can't create weakrefs of classmethods (don't ask me why...)
@@ -2208,6 +2230,28 @@ def wrapApiMethod( apiClass, methodName, newName=None, proxy=True, overloadIndex
             wrappedApiFunc = classmethod(wrappedApiFunc)
 
         return wrappedApiFunc
+
+def _getBaseFunc(callable):
+    '''Given various types of function-like-objects, returns the "True" function
+    object
+    '''
+    if inspect.ismethod(callable):
+        return callable.im_func
+    elif isinstance(callable, property):
+        if callable.fset is None and callable.fget is None:
+            return callable.fget
+    elif isinstance(callable, classmethod):
+        return callable.__get__(None, 'dummy').im_func
+    elif isinstance(callable, staticmethod):
+        return callable.__get__(None, 'dummy')
+    elif inspect.isfunction(callable):
+        return callable
+    return None
+
+def _apiMethodWrapInfo(obj):
+    func = _getBaseFunc(obj)
+    # func might be None, but that still works with getattr...
+    return getattr(func, '_pymel_wrapApiMethod_info', None)
 
 def addApiDocs(apiClass, methodName, overloadIndex=None, undoable=True):
     """decorator for adding API docs"""
@@ -2326,7 +2370,7 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         def __delete__(self, instance):
             raise AttributeError, "class constant cannot be deleted"
 
-    def __new__(metacls, classname, bases, classdict):
+    def __new__(metacls, classname, bases, classdict): # @NoSelf
         """ Create a new class of metaClassConstants type """
 
         #_logger.debug( 'MetaMayaTypeWrapper: %s' % classname )
@@ -2400,6 +2444,8 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
 
         # create the new class
         newcls = super(MetaMayaTypeWrapper, metacls).__new__(metacls, classname, bases, classdict)
+        metacls._registerApiWrapInfo(newcls)
+
 
         # shortcut for ensuring that our class constants are the same type as the class we are creating
         def makeClassConstant(attr):
@@ -2411,6 +2457,7 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         #------------------------
         # Class Constants
         #------------------------
+
         if hasattr(newcls, 'apicls') :
             # type (api type) used for the storage of data
             apicls  = newcls.apicls
@@ -2459,7 +2506,6 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
                     type.__setattr__(newcls, name, attr)
 
             #else :   raise TypeError, "must define 'apicls' in the class definition (which Maya API class to wrap)"
-
 
         if hasattr(newcls, 'apicls') and not ApiTypeRegister.isRegistered(newcls.apicls.__name__):
             ApiTypeRegister.register( newcls.apicls.__name__, newcls )
@@ -2556,7 +2602,10 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
                     if data.get('enabled', True):
                         if pymelName not in classdict:
                             #_logger.debug("%s.%s autowrapping %s.%s usng proxy %r" % (classname, pymelName, apicls.__name__, methodName, proxy))
-                            method = wrapApiMethod( apicls, methodName, newName=pymelName, proxy=proxy, overloadIndex=overloadIndex )
+                            method = wrapApiMethod(apicls, methodName,
+                                                   newName=pymelName,
+                                                   proxy=proxy,
+                                                   overloadIndex=overloadIndex)
                             if method:
                                 #_logger.debug("%s.%s successfully created" % (classname, pymelName ))
                                 classdict[pymelName] = method
@@ -2572,6 +2621,26 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
             removeAttrs = set(removeAttrs)
             removeAttrs.difference_update(EXCLUDE_METHODS) # tmp fix
         return removeAttrs
+
+    @classmethod
+    def _registerApiWrapInfo(metacls, newcls):
+        '''Add information on wrapped methods into global cache
+        '''
+        global _pyNodeApiWraps
+        # The information for most methods could be added from within
+        # _wrapApiMethods... but we want to catch MANUAL wraps as well - ie,
+        #
+        # class DependNode(PyNode):
+        #     isReadOnly = _factories.wrapApiMethod( _api.MFnDependencyNode, 'isFromReferencedFile', 'isReadOnly' )
+        #
+        # ...so we just iterate over all objects in the classdict...
+        className = newcls.__name__
+        for name, obj in newcls.__dict__.iteritems():
+            wrapInfo = _apiMethodWrapInfo(obj)
+            if not wrapInfo:
+                continue
+            _pyNodeApiWraps.setdefault(className, {})[name] = wrapInfo
+
 
 class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
     """
@@ -2777,7 +2846,7 @@ class MetaMayaUIWrapper(_MetaMayaCommandWrapper):
     def __new__(cls, classname, bases, classdict):
         # If the class explicitly gives it's mel ui command name, use that - otherwise, assume it's
         # the name of the PyNode, uncapitalized
-        uiType= classdict.setdefault('__melui__', util.uncapitalize(classname))
+        classdict.setdefault('__melui__', util.uncapitalize(classname))
 
         # TODO: implement a option at the cmdlist level that triggers listForNone
         # TODO: create labelArray for *Grp ui elements, which passes to the correct arg ( labelArray3, labelArray4, etc ) based on length of passed array
@@ -2858,7 +2927,6 @@ def addCustomPyNode(dynModule, mayaType, extraAttrs=None):
         _logger.warn( "could not create a PyNode for manipulator type %s" % mayaType)
         return
     except Exception:
-        import traceback
         _logger.debug(traceback.format_exc())
         inheritance = None
 
@@ -3218,7 +3286,6 @@ def mayaTypeToApiType(mayaType) :
     except KeyError:
         apiType = None
         if versions.current() >= versions.v2012:
-            import pymel.api.plugins as plugins
             try:
                 inheritance = apicache.getInheritance(mayaType,
                                                       checkManip3D=False)
