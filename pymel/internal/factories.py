@@ -2326,11 +2326,11 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         def __delete__(self, instance):
             raise AttributeError, "class constant cannot be deleted"
 
-    def __new__(cls, classname, bases, classdict):
+    def __new__(metacls, classname, bases, classdict):
         """ Create a new class of metaClassConstants type """
 
         #_logger.debug( 'MetaMayaTypeWrapper: %s' % classname )
-        removeAttrs = []
+        removeAttrs = set()
         # define __slots__ if not defined
         if '__slots__' not in classdict :
             classdict['__slots__'] = ()
@@ -2357,60 +2357,9 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
             except KeyError:
                 _logger.info("No api information for api class %s" % ( apicls.__name__ ))
             else:
-                #------------------------
-                # API Wrap
-                #------------------------
-
-                # Find out methods herited from other bases than apicls to avoid
-                # unwanted overloading
-                herited = {}
-                for base in bases :
-                    if base is not apicls :
-                        # basemro = inspect.getmro(base)
-                        for attr in dir(base) :
-                            if attr not in herited :
-                                herited[attr] = base
-
-                ##_logger.debug("Methods info: %(methods)s" % classInfo)
-                # Class Methods
-                for methodName, info in classInfo['methods'].items():
-                    # don't rewrap if already herited from a base class that is not the apicls
-                    #_logger.debug("Checking method %s" % (methodName))
-
-                    try:
-                        pymelName = info[0]['pymelName']
-                        removeAttrs.append(methodName)
-                    except KeyError:
-                        pymelName = methodName
-
-#                    if classname == 'DependNode' and pymelName in ('setName','getName'):
-#                        raise Exception('debug')
-
-                    pymelName, data = _getApiOverrideNameAndData( classname, pymelName )
-
-                    overloadIndex = data.get( 'overloadIndex', None )
-
-                    assert isinstance( pymelName, str ), "%s.%s: %r is not a valid name" % ( classname, methodName, pymelName)
-
-                    # TODO: some methods are being wrapped for the base class,
-                    # and all their children - ie, MFnTransform.transformation()
-                    # gets wrapped for Transform, Place3dTexture,
-                    # HikGroundPlane, etc...
-                    # Figure out why this happens, and stop it!
-                    if pymelName not in herited:
-                        if overloadIndex is not None:
-                            if data.get('enabled', True):
-                                if pymelName not in classdict:
-                                    #_logger.debug("%s.%s autowrapping %s.%s usng proxy %r" % (classname, pymelName, apicls.__name__, methodName, proxy))
-                                    method = wrapApiMethod( apicls, methodName, newName=pymelName, proxy=proxy, overloadIndex=overloadIndex )
-                                    if method:
-                                        #_logger.debug("%s.%s successfully created" % (classname, pymelName ))
-                                        classdict[pymelName] = method
-                                    #else: #_logger.debug("%s.%s: wrapApiMethod failed to create method" % (apicls.__name__, methodName ))
-                                #else: #_logger.debug("%s.%s: skipping" % (apicls.__name__, methodName ))
-                            #else: #_logger.debug("%s.%s has been manually disabled, skipping" % (apicls.__name__, methodName))
-                        #else: #_logger.debug("%s.%s has no wrappable methods, skipping" % (apicls.__name__, methodName))
-                    #else: #_logger.debug("%s.%s already herited from %s, skipping" % (apicls.__name__, methodName, herited[pymelName]))
+                removeAttrs = metacls._wrapApiMethods(classname, bases,
+                                                      classdict, apicls, proxy,
+                                                      classInfo)
 
                 if 'pymelEnums' in classInfo:
                     # Enumerators
@@ -2418,28 +2367,27 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
                     for enumName, enum in classInfo['pymelEnums'].items():
                         classdict[enumName] = enum
 
-
             if not proxy:
-                #if removeAttrs:
-                #    #_logger.debug( "%s: removing attributes %s" % (classname, removeAttrs) )
-                def __getattribute__(self, name):
-                    #_logger.debug(name )
-                    if name in removeAttrs and name not in EXCLUDE_METHODS: # tmp fix
-                        #_logger.debug("raising error")
-                        raise AttributeError, "'"+classname+"' object has no attribute '"+name+"'"
-                    #_logger.debug("getting from %s" % bases[0])
-                    # newcls will be defined by the time this is called...
-                    return super(newcls, self).__getattribute__(name)
+                if removeAttrs:
+                    #if removeAttrs:
+                    #    #_logger.debug( "%s: removing attributes %s" % (classname, removeAttrs) )
+                    def __getattribute__(self, name):
+                        #_logger.debug(name )
+                        if name in removeAttrs:
+                            #_logger.debug("raising error")
+                            raise AttributeError, "'"+classname+"' object has no attribute '"+name+"'"
+                        #_logger.debug("getting from %s" % bases[0])
+                        # newcls will be defined by the time this is called...
+                        return super(newcls, self).__getattribute__(name)
 
-                classdict['__getattribute__'] = __getattribute__
-
-                if cls._hasApiSetAttrBug(apicls):
+                    classdict['__getattribute__'] = __getattribute__
+                if metacls._hasApiSetAttrBug(apicls):
                     # correct the setAttr bug by wrapping the api's
                     # __setattr__ to handle data descriptors...
                     origSetAttr = apicls.__setattr__
                     # in case we need to restore the original setattr later...
                     # ... as we do in a test for this bug!
-                    cls._originalApiSetAttrs[apicls] = origSetAttr
+                    metacls._originalApiSetAttrs[apicls] = origSetAttr
                     def apiSetAttrWrap(self, name, value):
                         if hasattr(self.__class__, name):
                             if hasattr(getattr(self.__class__, name), '__set__'):
@@ -2451,7 +2399,7 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
 
 
         # create the new class
-        newcls = super(MetaMayaTypeWrapper, cls).__new__(cls, classname, bases, classdict)
+        newcls = super(MetaMayaTypeWrapper, metacls).__new__(metacls, classname, bases, classdict)
 
         # shortcut for ensuring that our class constants are the same type as the class we are creating
         def makeClassConstant(attr):
@@ -2546,6 +2494,84 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         # use the property, inserts it into the object's __dict__
         # manually
         return bool(foo2.bar != 7)
+
+    @classmethod
+    def _wrapApiMethods(metacls, classname, bases, classdict, apicls, proxy,
+                        classInfo):
+        # If not a proxy, we will need to "remove"/hide the original api methods
+        # We do this by adding the original api method names to this removeAttrs
+        # list, then implementing a __getattribute__ that hides them
+
+        # TODO: this method of removal is too agressive - for instance, it
+        # does not check if the api method name is the same as the pymel method
+        # name, or if there is a similar name in the classdict, or if some
+        # subclass later adds an item with such a name, etc
+        # Ideally, we would only mask the attribute if what we "would" get was
+        # the item from the original apicls
+        # Could do this using a function like where_attr_defined
+        # (see http://code.activestate.com/recipes/578305-find-what-class-an-attribute-ie-myobjmyattr-comes-/)
+        # but that would probably be too slow to run from within __getattribute__,
+        # which is called for EVERY attribute access...
+        removeAttrs = []
+
+        #------------------------
+        # API Wrap
+        #------------------------
+
+        # Find out names herited from other bases than apicls to avoid
+        # unwanted overloading
+        herited = {}
+        for base in bases :
+            if base is not apicls :
+                # basemro = inspect.getmro(base)
+                for attr in dir(base) :
+                    if attr not in herited :
+                        herited[attr] = base
+
+        ##_logger.debug("Methods info: %(methods)s" % classInfo)
+        # Class Methods
+        for methodName, info in classInfo['methods'].items():
+            # don't rewrap if already herited from a base class that is not the apicls
+            #_logger.debug("Checking method %s" % (methodName))
+
+            try:
+                pymelName = info[0]['pymelName']
+                removeAttrs.append(methodName)
+            except KeyError:
+                pymelName = methodName
+
+            pymelName, data = _getApiOverrideNameAndData( classname, pymelName )
+
+            overloadIndex = data.get( 'overloadIndex', None )
+
+            assert isinstance( pymelName, str ), "%s.%s: %r is not a valid name" % ( classname, methodName, pymelName)
+
+            # TODO: some methods are being wrapped for the base class,
+            # and all their children - ie, MFnTransform.transformation()
+            # gets wrapped for Transform, Place3dTexture,
+            # HikGroundPlane, etc...
+            # Figure out why this happens, and stop it!
+            if pymelName not in herited:
+                if overloadIndex is not None:
+                    if data.get('enabled', True):
+                        if pymelName not in classdict:
+                            #_logger.debug("%s.%s autowrapping %s.%s usng proxy %r" % (classname, pymelName, apicls.__name__, methodName, proxy))
+                            method = wrapApiMethod( apicls, methodName, newName=pymelName, proxy=proxy, overloadIndex=overloadIndex )
+                            if method:
+                                #_logger.debug("%s.%s successfully created" % (classname, pymelName ))
+                                classdict[pymelName] = method
+                            #else: #_logger.debug("%s.%s: wrapApiMethod failed to create method" % (apicls.__name__, methodName ))
+                        #else: #_logger.debug("%s.%s: skipping" % (apicls.__name__, methodName ))
+                    #else: #_logger.debug("%s.%s has been manually disabled, skipping" % (apicls.__name__, methodName))
+                #else: #_logger.debug("%s.%s has no wrappable methods, skipping" % (apicls.__name__, methodName))
+            #else: #_logger.debug("%s.%s already herited from %s, skipping" % (apicls.__name__, methodName, herited[pymelName]))
+
+        if proxy:
+            removeAttrs = set()
+        else:
+            removeAttrs = set(removeAttrs)
+            removeAttrs.difference_update(EXCLUDE_METHODS) # tmp fix
+        return removeAttrs
 
 class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
     """
