@@ -392,32 +392,32 @@ if includeDocExamples:
 #: stores a dictionary of pymel classnames to mel method names
 classToMelMap = util.defaultdict(list)
 
-def _getApiOverrideNameAndData(classname, pymelName):
-    if apiToMelData.has_key( (classname,pymelName) ):
+def _getApiOverrideNameAndData(pyClassName, pyMethodName):
+    if apiToMelData.has_key( (pyClassName,pyMethodName) ):
 
-        data = apiToMelData[(classname,pymelName)]
+        data = apiToMelData[(pyClassName,pyMethodName)]
         try:
             nameType = data['useName']
         except KeyError:
             # Not sure why it was a big deal if useName wasn't set...?
-            #_logger.warn( "no 'useName' key set for %s.%s" % (classname, pymelName) )
+            #_logger.warn( "no 'useName' key set for %s.%s" % (pyClassName, pyMethodName) )
             nameType = 'API'
 
         if nameType == 'API':
             pass
         elif nameType == 'MEL':
-            pymelName = data['melName']
+            pyMethodName = data['melName']
         else:
-            pymelName = nameType
+            pyMethodName = nameType
     else:
         # set defaults
-        #_logger.debug( "creating default api-to-MEL data for %s.%s" % ( classname, pymelName ) )
-        data = { 'enabled' : pymelName not in EXCLUDE_METHODS }
-        apiToMelData[(classname,pymelName)] = data
+        #_logger.debug( "creating default api-to-MEL data for %s.%s" % ( pyClassName, pyMethodName ) )
+        data = { 'enabled' : pyMethodName not in EXCLUDE_METHODS }
+        apiToMelData[(pyClassName,pyMethodName)] = data
 
 
     #overloadIndex = data.get( 'overloadIndex', None )
-    return pymelName, data
+    return pyMethodName, data
 
 
 def getUncachedCmds():

@@ -571,6 +571,61 @@ class DependNode( general.PyNode ):
             res.append((tmp[i], general.Attribute(self.node() + '.' + tmp[i+1])))
         return res
 
+    def findAlias(self, aliasName, attrObj=None):
+        '''Return True if the given aliasName is an alias for an attribute on
+        this node.
+
+        Parameters
+        ----------
+        aliasName : `str`
+            the name of the alias we are checking for
+        attrObj : `object`
+            does nothing, provided only for backward compatibility
+        '''
+        # dummyParam exists because in maya 2011 and before, the docs for
+        # MFnDependencyNode.findAlias(alias, attrObj) listed attrObj as an [in]
+        # parameter - therefore, the auto-generated wrap allowed two args...
+        # though the second arg didn't really do anything (it just needed to
+        # be an object from which an mobject could be derived - so any
+        # DependNode or Attribute would do)
+        # Now keeping dummyParam as a placeholder, to avoid breaking any old
+        # code that was actually using this incorrectly-wrapped findAttr.
+        #
+        # Another note - findAlias was supposed to be disabled, but due to a
+        # bug in the way that overrides + inheritance was handled, it was
+        # disabled on DependNode itself, and any node whose MFn class was NOT
+        # MFnDependencyNode, but was enabled on nodes whose MFn WAS
+        # MFnDependencyNode... so, ie
+        #    DependNode.findAlias did NOT exist
+        #    Transform.findAlias did NOT exist
+        #    Time.findAlias DID exist
+
+        obj = _api.MObject()
+
+        #Note - we don't bother trying to return an actual Attribute object...
+        # we could do this, but we don't because
+        #   a) backwards compatibility - old version just returned bool
+        #   b) the obj set by findAlias does not include index or compound child
+        #
+        # To see what I mean by b), try this:
+        #     import pymel.core as pm
+        #     import maya.cmds as cmds
+        #     t = pm.createNode('time')
+        #     # create an alias
+        #     cmds.aliasAttr('multiCompoundAlias', '%s.timewarpIn_Inmap[0].timewarpIn_InmapTo' % t)
+        #     obj = pm.api.MObject()
+        #     t.__apimfn__().findAlias('multiCompoundAlias', obj)
+        #     # make a plug from the object we get from findAlias
+        #     plug = pm.api.MPlug(t.__apimobject__(), obj)
+        #     # print what we get from findAlias, and what we "should" get
+        #     print plug.partialName(True, True, True, False, True, True)
+        #     print pm.Attribute('%s.multiCompoundAlias' % t).__apimplug__().partialName(True, True, True, False, True, True)
+        # You'll see that findAlias gives you:
+        #     time2.timewarpIn.timewarpIn_Inmap
+        # instead of:
+        #     time2.timewarpIn.timewarpIn_Inmap[0].timewarpIn_InmapTo
+        return self.__apimfn__().findAlias(aliasName, obj)
+
 
     def attrInfo( self, **kwargs):
         """attributeInfo
