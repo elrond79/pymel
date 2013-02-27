@@ -530,7 +530,8 @@ def apiPymelWrapData(keepDocs=False, keepReturnQualifiers=True):
     return usedMethods
 
 def findApiWrapRegressions(oldWraps, newWraps, docs=False,
-                           returnQualifiers=True, typeConversions=None):
+                           returnQualifiers=True, typeConversions=None,
+                           verbose=True):
     '''Given api wrap data from apiPymelWrapData for an old and new version,
     tries to find changes that would cause backwards-compatibility problems /
     regressions.
@@ -620,6 +621,66 @@ def findApiWrapRegressions(oldWraps, newWraps, docs=False,
                     diff = util.compareCascadingDicts(oldWrap, newWrap)
                     setIndexProblem(className, methodName, i, ('Overload differed',
                                                                diff[1:]))
+
+    if verbose:
+        printAllProblems(problems, oldWraps, newWraps)
     return problems
 
+def printAllProblems(problems, oldWraps, newWraps):
+    for cls, clsInfo in problems.iteritems():
+        if isinstance(clsInfo, basestring):
+            print '#' * 80
+            print '%s:' % cls
+            print clsInfo
+            continue
+        for method in clsInfo:
+            printMethProblems(cls, method, problems, oldWraps, newWraps)
 
+def printMethProblems(cls, method, problems, oldWraps, newWraps):
+    clsProb = problems[cls]
+    if isinstance(clsProb, basestring):
+        print clsProb
+        return
+    methProb = clsProb[method]
+    if isinstance(methProb, basestring):
+        print methProb
+        return
+
+    for overloadIndex, overloadDiff in problems[cls][method].iteritems():
+        print '#' * 80
+        print '%s.%s[%d]:' % (cls, method, overloadIndex)
+        print
+        for wraps, wrapName in (oldWraps, 'old'), (newWraps, 'new'):
+            print '%s:' % wrapName
+            clsInfo = wraps.get(cls)
+            if clsInfo is None:
+                print '!! class %s missing on %s !!' % (cls, wrapName)
+                continue
+            methInfo = clsInfo.get(method)
+            if methInfo is None:
+                print '!! method %s missing on %s !!' % (method, wrapName)
+                continue
+            overloadInfo = methInfo.get(overloadIndex)
+            if overloadInfo is None:
+                print '!! overload %s missing on %s !!' % (overloadIndex, wrapName)
+                continue
+            wrapSparse = getSparseFromDelta(overloadDiff[1][2], overloadInfo)
+            pprint.pprint(wrapSparse)
+
+def getSparseFromDelta(delta, orig):
+    #print "delta:", delta
+    #print "orig:", orig
+    results = {}
+    for key, deltaSub in delta.iteritems():
+        #print "deltaSub:", deltaSub
+        try:
+            origSub = orig[key]
+        except (KeyError, IndexError):
+            results[key] = '<Missing key %r>' % key
+        else:
+            if isinstance(deltaSub, dict):
+                results[key] = getSparseFromDelta(deltaSub, origSub)
+            else:
+                results[key] = orig[key]
+    #print "results:", results
+    return results
