@@ -453,6 +453,11 @@ class ApiDocParser(object):
     def methodSetter(self, method):
         return self.CurrentMethodSetter(self, method)
 
+    def isMayaConstant(self, name):
+        if name.startswith('k') and len(name) >= 2 and name[1].isupper():
+            return hasattr(self.apiModule, name)
+        return False
+
     def getPymelMethodNames(self):
 
 
@@ -774,22 +779,25 @@ class ApiDocParser(object):
                         'NULL' : None
                     }[default]
                 except KeyError:
-                    try:
-                        if type in ['int', 'uint','long', 'uchar']:
-                            default = int(default)
-                        elif type in ['float', 'double']:
-                            # '1.0 / 24.0'
-                            if '/' in default:
-                                default = eval(default)
-                            # '1.0e-5F'  --> '1.0e-5'
-                            elif default.endswith('F'):
-                                default = float(default[:-1])
+                    if self.isMayaConstant(default):
+                        default = getattr(self.apiModule, default)
+                    else:
+                        try:
+                            if type in ['int', 'uint','long', 'uchar']:
+                                default = int(default)
+                            elif type in ['float', 'double']:
+                                # '1.0 / 24.0'
+                                if '/' in default:
+                                    default = eval(default)
+                                # '1.0e-5F'  --> '1.0e-5'
+                                elif default.endswith('F'):
+                                    default = float(default[:-1])
+                                else:
+                                    default = float(default)
                             else:
-                                default = float(default)
-                        else:
+                                default = self.handleEnumDefaults(default, type)
+                        except ValueError:
                             default = self.handleEnumDefaults(default, type)
-                    except ValueError:
-                        default = self.handleEnumDefaults(default, type)
                 # default must be set here, because 'NULL' may be set to back to None, but this is in fact the value we want
                 self.xprint('DEFAULT', default)
                 results['default'] = default
