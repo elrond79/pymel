@@ -15,7 +15,6 @@ from operator import itemgetter
 
 # Maya imports
 import maya.cmds as cmds
-import maya.mel as mm
 
 # PyMEL imports
 import pymel.api as api
@@ -699,7 +698,7 @@ Error Trace:
         try:
             try:
                 return self.func(*self.args, **self.kwargs)
-            except Exception, e:
+            except Exception:
                 self.logCallbackError(self)
                 raise
         finally:
@@ -715,7 +714,7 @@ class CallbackWithArgs(Callback):
         try:
             try:
                 return self.func(*self.args + args, **kwargsFinal)
-            except Exception, e:
+            except Exception:
                 self.logCallbackError(self)
                 raise
         finally:
@@ -1393,7 +1392,7 @@ class ApiArgUtil(object):
 
     def iterArgs(self, inputs=True, outputs=True, infoKeys=[]):
         res = []
-        for argname, argtype, direction in self.methodInfo['args']:
+        for argname, argtype, direction in self.methodInfo['args']: # @UnusedVariable
 
             if direction == 'in':
                 if not inputs:
@@ -1486,7 +1485,7 @@ class ApiArgUtil(object):
                     else:
                         # in+out, or something else weird...
                         return False
-        except AssertionError, msg:
+        except AssertionError:
             #_logger.debug( str(msg) )
             return False
 
@@ -2056,7 +2055,6 @@ def wrapApiMethod( apiClass, methodName, newName=None, proxy=True, overloadIndex
         inArgs = argHelper.inArgs()
         outArgs = argHelper.outArgs()
         argList = argHelper.argList()
-        argInfo = argHelper.argInfo()
 
         getterArgHelper = argHelper.getGetterInfo()
 
@@ -2272,7 +2270,6 @@ def addApiDocsCallback( apiClass, methodName, overloadIndex=None, undoable=True,
     argHelper = ApiArgUtil(apiClassName, methodName, overloadIndex)
     inArgs = argHelper.inArgs()
     outArgs = argHelper.outArgs()
-    argList = argHelper.argList()
     argInfo = argHelper.argInfo()
 
     def formatDocstring(type):
