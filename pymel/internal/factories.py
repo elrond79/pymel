@@ -56,7 +56,6 @@ uiClassList = None
 nodeCommandList = None
 moduleCmds = None
 
-
 # Though the global variables and the attributes on _apiCacheInst SHOULD
 # always point to the same objects - ie,
 #    _apiCacheInst.apiClassInfo is apiClassInfo
@@ -92,6 +91,48 @@ def _setApiCacheGlobals():
                                 _apiCacheInst.extraDicts()) ]:
         for name, val in zip(names, values):
             globals()[name] = val
+
+    # Debug crap - there was a lot of old cruft in apiToMelData that I didn't
+    # think was ever being used, but wanted to make sure...
+    if False:
+        API_MEL_DEBUG_CLASSES = set(['Angle', 'MAngle',
+                              #'TransformationMatrix', 'MTransformationMatrix',
+                              #'DependNode'
+                              ])
+        # got these from cachetools.ApiMelDataKeyTranslator - keys that we
+        # couldn't figure out where they came from!
+        API_MEL_DEBUG_KEYS = set([('AnimCurve', 'setTangentTypes'), ('AttrHierarchyTest', 'enableDGTiming'), ('AttrHierarchyTest', 'getIcon'), ('AttrHierarchyTest', 'setIcon'), ('Attribute', 'asMDataHandle'), ('AttributeDefaults', 'getParent'), ('AttributeDefaults', 'setParent'), ('Camera', 'getEyeOffset'), ('Camera', 'isParallelView'), ('Camera', 'isStereo'), ('Camera', 'setEyeOffset'), ('Camera', 'setParallelView'), ('Camera', 'setStereo'), ('CameraSet', 'getLayerClearDepthValue'), ('CameraSet', 'setLayerClearDepthValue'), ('DagNode', 'activeColor'), ('DagNode', 'dormantColor'), ('DagNode', 'drawOverrideColor'), ('DagNode', 'drawOverrideEnabled'), ('DagNode', 'drawOverrideIsReference'), ('DagNode', 'drawOverrideIsTemplate'), ('DagNode', 'hiliteColor'), ('DagNode', 'usingHiliteColor'), ('DataBlockTest', 'enableDGTiming'), ('DataBlockTest', 'getIcon'), ('DataBlockTest', 'setIcon'), ('DependNode', 'enableDGTiming'), ('DependNode', 'getIcon'), ('DependNode', 'setIcon'), ('Distance', 'as'), ('Distance', 'asCentimeters'), ('Distance', 'asFeet'), ('Distance', 'asInches'), ('Distance', 'asKilometers'), ('Distance', 'asMeters'), ('Distance', 'asMiles'), ('Distance', 'asMillimeters'), ('Distance', 'asUnits'), ('Distance', 'asYards'), ('Distance', 'className'), ('Distance', 'getInternalUnit'), ('Distance', 'getUnit'), ('Distance', 'getValue'), ('Distance', 'internalToUI'), ('Distance', 'internalUnit'), ('Distance', 'setInternalUnit'), ('Distance', 'setUIUnit'), ('Distance', 'setUnit'), ('Distance', 'setValue'), ('Distance', 'uiToInternal'), ('Distance', 'uiUnit'), ('Entity', 'addAttribute'), ('Entity', 'allocateFlag'), ('Entity', 'attribute'), ('Entity', 'attributeClass'), ('Entity', 'attributeCount'), ('Entity', 'canBeWritten'), ('Entity', 'classification'), ('Entity', 'create'), ('Entity', 'deallocateAllFlags'), ('Entity', 'deallocateFlag'), ('Entity', 'dgCallbackIds'), ('Entity', 'dgCallbacks'), ('Entity', 'dgTimer'), ('Entity', 'dgTimerOff'), ('Entity', 'dgTimerOn'), ('Entity', 'dgTimerQueryState'), ('Entity', 'dgTimerReset'), ('Entity', 'enableDGTiming'), ('Entity', 'findAlias'), ('Entity', 'findPlug'), ('Entity', 'getAffectedAttributes'), ('Entity', 'getAffectedByAttributes'), ('Entity', 'getAliasAttr'), ('Entity', 'getAliasList'), ('Entity', 'getConnections'), ('Entity', 'getIcon'), ('Entity', 'getName'), ('Entity', 'getPlugsAlias'), ('Entity', 'hasAttribute'), ('Entity', 'hasUniqueName'), ('Entity', 'isDefaultNode'), ('Entity', 'isFlagSet'), ('Entity', 'isFromReferencedFile'), ('Entity', 'isLocked'), ('Entity', 'isNewAttribute'), ('Entity', 'isShared'), ('Entity', 'parentNamespace'), ('Entity', 'pluginName'), ('Entity', 'plugsAlias'), ('Entity', 'removeAttribute'), ('Entity', 'reorderedAttribute'), ('Entity', 'setAlias'), ('Entity', 'setDoNotWrite'), ('Entity', 'setFlag'), ('Entity', 'setIcon'), ('Entity', 'setLocked'), ('Entity', 'setName'), ('Entity', 'typeId'), ('Entity', 'typeName'), ('Entity', 'userNode'), ('HierarchyTestNode1', 'enableDGTiming'), ('HierarchyTestNode1', 'getIcon'), ('HierarchyTestNode1', 'setIcon'), ('HierarchyTestNode2', 'enableDGTiming'), ('HierarchyTestNode2', 'getIcon'), ('HierarchyTestNode2', 'setIcon'), ('HierarchyTestNode3', 'enableDGTiming'), ('HierarchyTestNode3', 'getIcon'), ('HierarchyTestNode3', 'setIcon'), (u'Joint', u'getRelative'), (u'Joint', u'setRelative'), ('LightSet', 'addMember'), ('LightSet', 'addMembers'), ('LightSet', 'className'), ('LightSet', 'clear'), ('LightSet', 'create'), ('LightSet', 'getAnnotation'), ('LightSet', 'getIntersection'), ('LightSet', 'getMembers'), ('LightSet', 'getUnion'), ('LightSet', 'hasRestrictions'), ('LightSet', 'intersectsWith'), ('LightSet', 'isMember'), ('LightSet', 'removeMember'), ('LightSet', 'removeMembers'), ('LightSet', 'restriction'), ('LightSet', 'setAnnotation'), ('LightSet', 'type'), ('MFnSet', 'getIntersection'), ('MFnSet', 'getIntersectn'), ('MatteSet', 'addMember'), ('MatteSet', 'addMembers'), ('MatteSet', 'className'), ('MatteSet', 'clear'), ('MatteSet', 'create'), ('MatteSet', 'getAnnotation'), ('MatteSet', 'getIntersection'), ('MatteSet', 'getMembers'), ('MatteSet', 'getUnion'), ('MatteSet', 'hasRestrictions'), ('MatteSet', 'intersectsWith'), ('MatteSet', 'isMember'), ('MatteSet', 'removeMember'), ('MatteSet', 'removeMembers'), ('MatteSet', 'restriction'), ('MatteSet', 'setAnnotation'), ('MatteSet', 'type'), ('Mesh', 'addHoles'), ('Mesh', 'copyUVSet'), ('Mesh', 'createColorSet'), ('Mesh', 'createUVSet'), ('Mesh', 'getDisplayColors'), ('Mesh', 'polyTriangulate'), ('Mesh', 'setDisplayColors'), ('OldBlindDataBase', 'enableDGTiming'), ('OldBlindDataBase', 'getIcon'), ('OldBlindDataBase', 'setIcon'), ('RadialField', 'getRadialType'), ('RadialField', 'setRadialType'), ('SimpleTestNode', 'enableDGTiming'), ('SimpleTestNode', 'getIcon'), ('SimpleTestNode', 'setIcon'), ('SwitchColorSet', 'addMember'), ('SwitchColorSet', 'addMembers'), ('SwitchColorSet', 'className'), ('SwitchColorSet', 'clear'), ('SwitchColorSet', 'create'), ('SwitchColorSet', 'getAnnotation'), ('SwitchColorSet', 'getIntersection'), ('SwitchColorSet', 'getMembers'), ('SwitchColorSet', 'getUnion'), ('SwitchColorSet', 'hasRestrictions'), ('SwitchColorSet', 'intersectsWith'), ('SwitchColorSet', 'isMember'), ('SwitchColorSet', 'removeMember'), ('SwitchColorSet', 'removeMembers'), ('SwitchColorSet', 'restriction'), ('SwitchColorSet', 'setAnnotation'), ('SwitchColorSet', 'type'), ('TextureToGeom', 'enableDGTiming'), ('TextureToGeom', 'getIcon'), ('TextureToGeom', 'setIcon'), ('Time', '__add__'), ('Time', '__div__'), ('Time', '__eq__'), ('Time', '__mul__'), ('Time', '__neq__'), ('Time', '__radd__'), ('Time', '__rdiv__'), ('Time', '__rmult__'), ('Time', '__rsub__'), ('Time', '__sub__'), ('Time', 'as'), ('Time', 'getUnit'), ('Time', 'getValue'), ('Time', 'setUIUnit'), ('Time', 'setUnit'), ('Time', 'setValue'), ('Time', 'uiUnit')])
+        #API_MEL_DEBUG_KEYS.add(('MFnTransform', 'getScale'))
+        API_MEL_DEBUG_KEYS = set()
+
+        class ApiToMelDataDict(dict):
+            def printWarning(self, key):
+                if key[0] in API_MEL_DEBUG_CLASSES or key in API_MEL_DEBUG_KEYS:
+                    print '!' * 80
+                    print '!' * 80
+                    print '!' * 80
+                    print "tried to accessApiToMelData[%s]" % (key,)
+                    traceback.print_stack()
+                    print '!' * 80
+                    print '!' * 80
+                    print '!' * 80
+
+            def __getitem__(self, key):
+                self.printWarning(key)
+                return dict.__getitem__(self, key)
+
+            def __contains__(self, key):
+                self.printWarning(key)
+                return dict.__contains__(self, key)
+
+            def has_key(self, key):
+                self.printWarning(key)
+                return dict.has_key(self, key)
+        global apiToMelData
+        apiToMelData = ApiToMelDataDict(apiToMelData)
+
+
+
 
 def loadCmdCache():
     _logger.debug("Loading cmd cache...")
@@ -141,7 +182,7 @@ loadCmdCache()
 
 DOC_WIDTH = 120
 
-EXCLUDE_METHODS = ['type', 'className', 'create', 'name' ]
+EXCLUDE_METHODS = ['type', 'className', 'create' ]
 
 #: controls whether command docstrings will contain examples parsed from autodesk docs
 # examples are usually only included when creating documentation, otherwise it's too much info
