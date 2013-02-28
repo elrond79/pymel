@@ -362,7 +362,9 @@ class MethodRow(object):
         self.apiClassName = apiClassName
         self.apiMethodName = apiMethodName
         self.methodInfoList = methodInfoList
-        self.data = factories._getApiOverrideNameAndData(self.className, self.methodName)[1]
+        self.data = factories._getApiOverrideNameAndData(self.apiClassName,
+                                                         self.className,
+                                                         self.apiMethodName)[1]
         self.classInfo = factories.apiClassInfo[self.apiClassName]['methods'][self.apiMethodName]
         try:
             enabledArray = self.getEnabledArray()
@@ -477,7 +479,11 @@ class MethodRow(object):
         enabledArray = []
         self.rows = []
         self.overloadPrecedenceColl = None
-        self.enabledChBx = checkBox(label=self.methodName,
+        if self.apiMethodName != self.methodName:
+            label = '%s        (orignal api name: %s)' % (self.methodName, self.apiMethodName)
+        else:
+            label = self.methodName
+        self.enabledChBx = checkBox(label=label,
                     changeCommand=CallbackWithArgs( MethodRow.enableCB, self ) )
 
         if isOverloaded:

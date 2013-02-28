@@ -302,7 +302,7 @@ class testCase_invertibles(unittest.TestCase):
         return uniqueName
 
     @classmethod
-    def _getMethodAndArgTypes(cls, basePyClass, pyClassName, apiClassName,
+    def _getMethodAndArgTypes(cls, apiClassName, basePyClass, pyClassName, apiClassName,
                        classInfo, methodName):
         try:
             info = classInfo['methods'][methodName]
@@ -313,7 +313,7 @@ class testCase_invertibles(unittest.TestCase):
         except KeyError:
             pass
 
-        methodName, data = factories._getApiOverrideNameAndData( pyClassName, methodName )
+        methodName, data = factories._getApiOverrideNameAndData(apiClassName, pyClassName, methodName)
         try:
             overloadIndex = data['overloadIndex']
             info = info[overloadIndex]
@@ -358,7 +358,8 @@ class testCase_invertibles(unittest.TestCase):
                 #print invertibles
 
                 for setMethod, getMethod in invertibles:
-                    setMethodData = cls._getMethodAndArgTypes(pynode, className,
+                    setMethodData = cls._getMethodAndArgTypes(apiClassName,
+                                                              pynode, className,
                                                               apiClassName,
                                                               classInfo,
                                                               setMethod)
@@ -373,7 +374,8 @@ class testCase_invertibles(unittest.TestCase):
 
                     getter = None
                     if (pynodeName, getMethod) not in cls.GETTER_SKIPS:
-                        getMethodData = cls._getMethodAndArgTypes(pynode, className,
+                        getMethodData = cls._getMethodAndArgTypes(apiClassName,
+                                                                  pynode, className,
                                                                   apiClassName,
                                                                   classInfo,
                                                                   getMethod)

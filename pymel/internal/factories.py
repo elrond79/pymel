@@ -391,10 +391,38 @@ if includeDocExamples:
 #: stores a dictionary of pymel classnames to mel method names
 classToMelMap = util.defaultdict(list)
 
-def _getApiOverrideNameAndData(pyClassName, pyMethodName):
-    if apiToMelData.has_key( (pyClassName,pyMethodName) ):
+# TODO: at some point, would like to make the key use the apiMethodName, since
+# that makes more sense...
+# The way apiToMelData is currently constructed is a little complex, however...
+# If there is no entry, and pymel is imported, then the default entry that
+# gets constructed will be:
+#    {'overloadIndex': None, 'enabled': True, 'useName': 'API'}
+# ...meaning any newly-discovered api methods will be disabled by default.
+#
+# However, if we run pymelControlPanel, any entries which have an overloadIndex
+# of None (and any new entries) will be checked to see if they have any valid
+# overloads... and if so, it will assign the first valid overload found.
+#
+# In effect, this means that if there are any new MFn's that are assigned as the
+# apicls for some pynode, they will not be wrapped until we run
+# pymelControlPanel... meaning we should run pymelControlPanel after every
+# cache rebuild for a new version of maya (if we want to enable new MFn wraps)
 
-        data = apiToMelData[(pyClassName,pyMethodName)]
+# For now, converted it to take apiClassName, pyClassName, apiMethodName -
+# once we convert the underlying apiToMelData to index by
+#   (pyClassName, apiMethodName)
+# keys, we can drop the apiClassName arg...
+def _getApiOverrideNameAndData(apiClassName, pyClassName, apiMethodName):
+    methodInfo = apiClassInfo[apiClassName]['methods'][apiMethodName]
+    try:
+        basePyMethodName = methodInfo[0]['pymelName']
+    except KeyError:
+        basePyMethodName = apiMethodName
+
+    pyMethodName = basePyMethodName
+    if apiToMelData.has_key( (pyClassName,basePyMethodName) ):
+
+        data = apiToMelData[(pyClassName,basePyMethodName)]
         try:
             nameType = data['useName']
         except KeyError:
@@ -411,9 +439,8 @@ def _getApiOverrideNameAndData(pyClassName, pyMethodName):
     else:
         # set defaults
         #_logger.debug( "creating default api-to-MEL data for %s.%s" % ( pyClassName, pyMethodName ) )
-        data = { 'enabled' : pyMethodName not in EXCLUDE_METHODS }
-        apiToMelData[(pyClassName,pyMethodName)] = data
-
+        data = { 'enabled' : basePyMethodName not in EXCLUDE_METHODS }
+        apiToMelData[(pyClassName,basePyMethodName)] = data
 
     #overloadIndex = data.get( 'overloadIndex', None )
     return pyMethodName, data
@@ -1520,13 +1547,12 @@ class ApiArgUtil(object):
         return self.methodInfo['returnType']
 
     def getPymelName(self ):
-        pymelName = self.methodInfo.get('pymelName',self.methodName)
         try:
             pymelClassName = apiClassNamesToPyNodeNames[self.apiClassName]
-            pymelName = _getApiOverrideNameAndData( pymelClassName, pymelName )[0]
         except KeyError:
-            pass
-        return pymelName
+            return self.methodInfo.get('pymelName',self.methodName)
+        return _getApiOverrideNameAndData(self.apiClassName, pymelClassName,
+                                          self.methodName)[0]
 
     def getMethodDocs(self):
         return self.methodInfo['doc']
@@ -2573,17 +2599,11 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
 
         ##_logger.debug("Methods info: %(methods)s" % classInfo)
         # Class Methods
-        for methodName, info in classInfo['methods'].items():
+        for methodName, info in classInfo['methods'].iteritems():
             # don't rewrap if already herited from a base class that is not the apicls
             #_logger.debug("Checking method %s" % (methodName))
-
-            try:
-                pymelName = info[0]['pymelName']
-                removeAttrs.append(methodName)
-            except KeyError:
-                pymelName = methodName
-
-            pymelName, data = _getApiOverrideNameAndData( classname, pymelName )
+            pymelName, data = _getApiOverrideNameAndData(apicls.__name__,
+                                                         classname, methodName)
 
             overloadIndex = data.get( 'overloadIndex', None )
 
