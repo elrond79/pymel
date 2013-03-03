@@ -587,7 +587,12 @@ class Menu(PyUI):
         """ Modified to return pymel instances """
         children = cmds.menu(self,query=True,itemArray=True)
         if children:
-            return [MenuItem(item) for item in cmds.menu(self,query=True,itemArray=True)]
+            pyChildren = []
+            for child in children:
+                if '|' not in child:
+                    child = '|'.join([self.name(), child])
+                pyChildren.append(MenuItem(child))
+            return pyChildren
         else:
             return []
 
