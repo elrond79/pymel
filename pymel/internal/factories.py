@@ -2758,7 +2758,6 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
                     # query command
                     if 'query' in modes:
                         methodName = 'get' + util.capitalize(flag)
-                        classToMelMap[classname].append( methodName )
 
                         if methodName not in filterAttrs and \
                                 ( not hasattr(newcls, methodName) or cls.isMelMethod(methodName, parentClasses) ):
@@ -2768,6 +2767,7 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
                             if not apiToPyData.has_key((classname,methodName)) \
                                 or apiToPyData[(classname,methodName)].get('melEnabled',False) \
                                 or not apiToPyData[(classname,methodName)].get('enabled',True):
+                                classToMelMap[classname].append( methodName )
                                 returnFunc = None
 
                                 if flagInfo.get( 'resultNeedsCasting', False):
@@ -2799,13 +2799,12 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
                         else:
                             methodName = flag
 
-                        classToMelMap[classname].append( methodName )
-
                         if methodName not in filterAttrs and \
                                 ( not hasattr(newcls, methodName) or cls.isMelMethod(methodName, parentClasses) ):
                             if not apiToPyData.has_key((classname,methodName)) \
                                 or apiToPyData[(classname,methodName)].get('melEnabled',False) \
                                 or not apiToPyData[(classname,methodName)].get('enabled', True):
+                                classToMelMap[classname].append( methodName )
                                 #FIXME: shouldn't we be able to use the wrapped pymel command, which is already fixed?
                                 fixedFunc = fixCallbacks( func, melCmdName )
 
