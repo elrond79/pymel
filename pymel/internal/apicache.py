@@ -556,10 +556,10 @@ class ApiMelBridgeCache(startup.SubItemCache):
     DESC = 'the API-MEL bridge'
     COMPRESSED = True
     USE_VERSION = False
-    _CACHE_NAMES = '''apiToMelData apiClassOverrides'''.split()
+    _CACHE_NAMES = '''apiToPyData apiClassOverrides'''.split()
 
-    CACHE_TYPES = {'apiToMelData':_defaultdictdict}
-    STORAGE_TYPES = {'apiToMelData':dict}
+    CACHE_TYPES = {'apiToPyData':_defaultdictdict}
+    STORAGE_TYPES = {'apiToPyData':dict}
 
 
 class ApiCache(startup.SubItemCache):

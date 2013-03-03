@@ -46,7 +46,7 @@ apiClassInfo = None
 mayaTypesToApiEnums = None
 
 # ApiMelBridgeCache
-apiToMelData  = None
+apiToPyData  = None
 apiClassOverrides = None
 
 # CmdCache
@@ -92,7 +92,7 @@ def _setApiCacheGlobals():
         for name, val in zip(names, values):
             globals()[name] = val
 
-    # Debug crap - there was a lot of old cruft in apiToMelData that I didn't
+    # Debug crap - there was a lot of old cruft in apiToPyData that I didn't
     # think was ever being used, but wanted to make sure...
     if False:
         API_MEL_DEBUG_CLASSES = set(['Angle', 'MAngle',
@@ -128,8 +128,8 @@ def _setApiCacheGlobals():
             def has_key(self, key):
                 self.printWarning(key)
                 return dict.has_key(self, key)
-        global apiToMelData
-        apiToMelData = ApiToMelDataDict(apiToMelData)
+        global apiToPyData
+        apiToPyData = ApiToMelDataDict(apiToPyData)
 
 
 
@@ -434,7 +434,7 @@ classToMelMap = util.defaultdict(list)
 
 # TODO: at some point, would like to make the key use the apiMethodName, since
 # that makes more sense...
-# The way apiToMelData is currently constructed is a little complex, however...
+# The way apiToPyData is currently constructed is a little complex, however...
 # If there is no entry, and pymel is imported, then the default entry that
 # gets constructed will be:
 #    {'overloadIndex': None, 'enabled': True, 'useName': 'API'}
@@ -450,7 +450,7 @@ classToMelMap = util.defaultdict(list)
 # cache rebuild for a new version of maya (if we want to enable new MFn wraps)
 
 # For now, converted it to take apiClassName, pyClassName, apiMethodName -
-# once we convert the underlying apiToMelData to index by
+# once we convert the underlying apiToPyData to index by
 #   (pyClassName, apiMethodName)
 # keys, we can drop the apiClassName arg...
 def _getApiOverrideNameAndData(apiClassName, pyClassName, apiMethodName):
@@ -461,9 +461,9 @@ def _getApiOverrideNameAndData(apiClassName, pyClassName, apiMethodName):
         basePyMethodName = apiMethodName
 
     pyMethodName = basePyMethodName
-    if apiToMelData.has_key( (pyClassName,basePyMethodName) ):
+    if apiToPyData.has_key( (pyClassName,basePyMethodName) ):
 
-        data = apiToMelData[(pyClassName,basePyMethodName)]
+        data = apiToPyData[(pyClassName,basePyMethodName)]
         try:
             nameType = data['useName']
         except KeyError:
@@ -481,7 +481,7 @@ def _getApiOverrideNameAndData(apiClassName, pyClassName, apiMethodName):
         # set defaults
         #_logger.debug( "creating default api-to-MEL data for %s.%s" % ( pyClassName, pyMethodName ) )
         data = { 'enabled' : basePyMethodName not in EXCLUDE_METHODS }
-        apiToMelData[(pyClassName,basePyMethodName)] = data
+        apiToPyData[(pyClassName,basePyMethodName)] = data
 
     #overloadIndex = data.get( 'overloadIndex', None )
     return pyMethodName, data
@@ -2765,9 +2765,9 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
 
                             # 'enabled' refers to whether the API version of this method will be used.
                             # if the method is enabled that means we skip it here.
-                            if not apiToMelData.has_key((classname,methodName)) \
-                                or apiToMelData[(classname,methodName)].get('melEnabled',False) \
-                                or not apiToMelData[(classname,methodName)].get('enabled',True):
+                            if not apiToPyData.has_key((classname,methodName)) \
+                                or apiToPyData[(classname,methodName)].get('melEnabled',False) \
+                                or not apiToPyData[(classname,methodName)].get('enabled',True):
                                 returnFunc = None
 
                                 if flagInfo.get( 'resultNeedsCasting', False):
@@ -2803,9 +2803,9 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
 
                         if methodName not in filterAttrs and \
                                 ( not hasattr(newcls, methodName) or cls.isMelMethod(methodName, parentClasses) ):
-                            if not apiToMelData.has_key((classname,methodName)) \
-                                or apiToMelData[(classname,methodName)].get('melEnabled',False) \
-                                or not apiToMelData[(classname,methodName)].get('enabled', True):
+                            if not apiToPyData.has_key((classname,methodName)) \
+                                or apiToPyData[(classname,methodName)].get('melEnabled',False) \
+                                or not apiToPyData[(classname,methodName)].get('enabled', True):
                                 #FIXME: shouldn't we be able to use the wrapped pymel command, which is already fixed?
                                 fixedFunc = fixCallbacks( func, melCmdName )
 

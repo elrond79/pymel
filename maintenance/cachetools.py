@@ -687,11 +687,11 @@ def getSparseFromDelta(delta, orig):
     #print "results:", results
     return results
 
-# apiToMelData used to be indexed by (pyNodeName, basePyMethodName)
+# apiToPyData used to be indexed by (pyNodeName, basePyMethodName)
 # where basePyMethodName was the 'pymelName' stored in
 #    apiClassInfo[apiClassName]['methods'][apiMethodName]
 # Using this as a key was bad, though, both because one of the things the
-# apiToMelData is supposed to store is what pymelName api methods map to (so
+# apiToPyData is supposed to store is what pymelName api methods map to (so
 # indexing based on an 'intermediate' pymel name is strange), and because it
 # can result in key conflicts - ie, both MTransformationMatrix.rotation and
 # MTransformationMatrix.getRotation map to the 'standard' pymel name of
@@ -724,7 +724,7 @@ class ApiMelDataKeyTranslator(object):
                              ('AnimCurve', 'setTangentTypes'), ('AttrHierarchyTest', 'enableDGTiming'), ('AttrHierarchyTest', 'getIcon'), ('AttrHierarchyTest', 'setIcon'), ('Attribute', 'asMDataHandle'), ('AttributeDefaults', 'getParent'), ('AttributeDefaults', 'setParent'), ('Camera', 'getEyeOffset'), ('Camera', 'isParallelView'), ('Camera', 'isStereo'), ('Camera', 'setEyeOffset'), ('Camera', 'setParallelView'), ('Camera', 'setStereo'), ('CameraSet', 'getLayerClearDepthValue'), ('CameraSet', 'setLayerClearDepthValue'), ('DagNode', 'activeColor'), ('DagNode', 'dormantColor'), ('DagNode', 'drawOverrideColor'), ('DagNode', 'drawOverrideEnabled'), ('DagNode', 'drawOverrideIsReference'), ('DagNode', 'drawOverrideIsTemplate'), ('DagNode', 'hiliteColor'), ('DagNode', 'usingHiliteColor'), ('DataBlockTest', 'enableDGTiming'), ('DataBlockTest', 'getIcon'), ('DataBlockTest', 'setIcon'), ('DependNode', 'enableDGTiming'), ('DependNode', 'getIcon'), ('DependNode', 'setIcon'), ('Distance', 'as'), ('Distance', 'asCentimeters'), ('Distance', 'asFeet'), ('Distance', 'asInches'), ('Distance', 'asKilometers'), ('Distance', 'asMeters'), ('Distance', 'asMiles'), ('Distance', 'asMillimeters'), ('Distance', 'asUnits'), ('Distance', 'asYards'), ('Distance', 'className'), ('Distance', 'getInternalUnit'), ('Distance', 'getUnit'), ('Distance', 'getValue'), ('Distance', 'internalToUI'), ('Distance', 'internalUnit'), ('Distance', 'setInternalUnit'), ('Distance', 'setUIUnit'), ('Distance', 'setUnit'), ('Distance', 'setValue'), ('Distance', 'uiToInternal'), ('Distance', 'uiUnit'), ('Entity', 'addAttribute'), ('Entity', 'allocateFlag'), ('Entity', 'attribute'), ('Entity', 'attributeClass'), ('Entity', 'attributeCount'), ('Entity', 'canBeWritten'), ('Entity', 'classification'), ('Entity', 'create'), ('Entity', 'deallocateAllFlags'), ('Entity', 'deallocateFlag'), ('Entity', 'dgCallbackIds'), ('Entity', 'dgCallbacks'), ('Entity', 'dgTimer'), ('Entity', 'dgTimerOff'), ('Entity', 'dgTimerOn'), ('Entity', 'dgTimerQueryState'), ('Entity', 'dgTimerReset'), ('Entity', 'enableDGTiming'), ('Entity', 'findAlias'), ('Entity', 'findPlug'), ('Entity', 'getAffectedAttributes'), ('Entity', 'getAffectedByAttributes'), ('Entity', 'getAliasAttr'), ('Entity', 'getAliasList'), ('Entity', 'getConnections'), ('Entity', 'getIcon'), ('Entity', 'getName'), ('Entity', 'getPlugsAlias'), ('Entity', 'hasAttribute'), ('Entity', 'hasUniqueName'), ('Entity', 'isDefaultNode'), ('Entity', 'isFlagSet'), ('Entity', 'isFromReferencedFile'), ('Entity', 'isLocked'), ('Entity', 'isNewAttribute'), ('Entity', 'isShared'), ('Entity', 'parentNamespace'), ('Entity', 'pluginName'), ('Entity', 'plugsAlias'), ('Entity', 'removeAttribute'), ('Entity', 'reorderedAttribute'), ('Entity', 'setAlias'), ('Entity', 'setDoNotWrite'), ('Entity', 'setFlag'), ('Entity', 'setIcon'), ('Entity', 'setLocked'), ('Entity', 'setName'), ('Entity', 'typeId'), ('Entity', 'typeName'), ('Entity', 'userNode'), ('HierarchyTestNode1', 'enableDGTiming'), ('HierarchyTestNode1', 'getIcon'), ('HierarchyTestNode1', 'setIcon'), ('HierarchyTestNode2', 'enableDGTiming'), ('HierarchyTestNode2', 'getIcon'), ('HierarchyTestNode2', 'setIcon'), ('HierarchyTestNode3', 'enableDGTiming'), ('HierarchyTestNode3', 'getIcon'), ('HierarchyTestNode3', 'setIcon'), (u'Joint', u'getRelative'), (u'Joint', u'setRelative'), ('LightSet', 'addMember'), ('LightSet', 'addMembers'), ('LightSet', 'className'), ('LightSet', 'clear'), ('LightSet', 'create'), ('LightSet', 'getAnnotation'), ('LightSet', 'getIntersection'), ('LightSet', 'getMembers'), ('LightSet', 'getUnion'), ('LightSet', 'hasRestrictions'), ('LightSet', 'intersectsWith'), ('LightSet', 'isMember'), ('LightSet', 'removeMember'), ('LightSet', 'removeMembers'), ('LightSet', 'restriction'), ('LightSet', 'setAnnotation'), ('LightSet', 'type'), ('MFnSet', 'getIntersection'), ('MFnSet', 'getIntersectn'), ('MatteSet', 'addMember'), ('MatteSet', 'addMembers'), ('MatteSet', 'className'), ('MatteSet', 'clear'), ('MatteSet', 'create'), ('MatteSet', 'getAnnotation'), ('MatteSet', 'getIntersection'), ('MatteSet', 'getMembers'), ('MatteSet', 'getUnion'), ('MatteSet', 'hasRestrictions'), ('MatteSet', 'intersectsWith'), ('MatteSet', 'isMember'), ('MatteSet', 'removeMember'), ('MatteSet', 'removeMembers'), ('MatteSet', 'restriction'), ('MatteSet', 'setAnnotation'), ('MatteSet', 'type'), ('Mesh', 'addHoles'), ('Mesh', 'copyUVSet'), ('Mesh', 'createColorSet'), ('Mesh', 'createUVSet'), ('Mesh', 'getDisplayColors'), ('Mesh', 'polyTriangulate'), ('Mesh', 'setDisplayColors'), ('OldBlindDataBase', 'enableDGTiming'), ('OldBlindDataBase', 'getIcon'), ('OldBlindDataBase', 'setIcon'), ('RadialField', 'getRadialType'), ('RadialField', 'setRadialType'), ('SimpleTestNode', 'enableDGTiming'), ('SimpleTestNode', 'getIcon'), ('SimpleTestNode', 'setIcon'), ('SwitchColorSet', 'addMember'), ('SwitchColorSet', 'addMembers'), ('SwitchColorSet', 'className'), ('SwitchColorSet', 'clear'), ('SwitchColorSet', 'create'), ('SwitchColorSet', 'getAnnotation'), ('SwitchColorSet', 'getIntersection'), ('SwitchColorSet', 'getMembers'), ('SwitchColorSet', 'getUnion'), ('SwitchColorSet', 'hasRestrictions'), ('SwitchColorSet', 'intersectsWith'), ('SwitchColorSet', 'isMember'), ('SwitchColorSet', 'removeMember'), ('SwitchColorSet', 'removeMembers'), ('SwitchColorSet', 'restriction'), ('SwitchColorSet', 'setAnnotation'), ('SwitchColorSet', 'type'), ('TextureToGeom', 'enableDGTiming'), ('TextureToGeom', 'getIcon'), ('TextureToGeom', 'setIcon'), ('Time', '__add__'), ('Time', '__div__'), ('Time', '__eq__'), ('Time', '__mul__'), ('Time', '__neq__'), ('Time', '__radd__'), ('Time', '__rdiv__'), ('Time', '__rmult__'), ('Time', '__rsub__'), ('Time', '__sub__'), ('Time', 'as'), ('Time', 'getUnit'), ('Time', 'getValue'), ('Time', 'setUIUnit'), ('Time', 'setUnit'), ('Time', 'setValue'), ('Time', 'uiUnit')
                             ])
 
-    def __init__(self, verbose=False, apiClassInfo=None, apiToMelData=None,
+    def __init__(self, verbose=False, apiClassInfo=None, apiToPyData=None,
                  fromCache=True):
         # make sure we trigger loading of all dynamic modules, and all their
         # members...
@@ -737,22 +737,22 @@ class ApiMelDataKeyTranslator(object):
                 apiClassInfo = apiCache[4]
             else:
                 apiClassInfo = factories.apiClassInfo
-        if apiToMelData is None:
+        if apiToPyData is None:
             if fromCache:
                 # for translation, want to get most raw form of the cache
                 # possible...
                 #apiBridge = picklezip.load('/Volumes/sv-dev01/devRepo/paulm/python/pymel/pymel/cache/mayaApiMelBridge.zip')
                 apiBridge = apicache.ApiMelBridgeCache().read()
-                apiToMelData = apiBridge[0]
+                apiToPyData = apiBridge[0]
             else:
-                apiToMelData = factories.apiToMelData
+                apiToPyData = factories.apiToPyData
 
         self.apiClassInfo = apiClassInfo
-        self. apiToMelData = apiToMelData
+        self.apiToPyData = apiToPyData
         self.verbose = verbose
 
-        self.newApiMelData = {}
-        self.newCmdsWrapData = {}
+        self.newApiToPyData = {}
+        self.newCmdsToPyData = {}
 
         self.oldToNewKey = {}
         self.newToOldKey = {}
@@ -821,7 +821,7 @@ class ApiMelDataKeyTranslator(object):
 
         print "num nonTranslated:", len(self.nonTranslated())
 
-        # there's some classes that have info in apiToMelData that, as far
+        # there's some classes that have info in apiToPyData that, as far
         # as I can tell, is never actually used anymore... use manual mappings
         # to get the api names for these...
         manualMaps = {'Angle':pm.api.MAngle}
@@ -844,8 +844,8 @@ class ApiMelDataKeyTranslator(object):
         print "num nonTranslated:", len(self.nonTranslated())
 
     def nonTranslated(self):
-        return sorted(set(self.apiToMelData) - set(self.oldToNewKey)
-                      - set(self.newCmdsWrapData) - self.deleted)
+        return sorted(set(self.apiToPyData) - set(self.oldToNewKey)
+                      - set(self.newCmdsToPyData) - self.deleted)
 
     def doClsHierTranslation(self, apiClsName, pyNodeName):
         self.info("translating hierarchy for %s / %s" % (apiClsName, pyNodeName))
@@ -879,7 +879,7 @@ class ApiMelDataKeyTranslator(object):
             self.doApiPyMethodTranslation(apiClsName, pyNodeName, apiMethodName, pyMethodName)
 
         # also try the fully-translated pymel name, because it seems data
-        # sometimes got mistakenly stored in apiToMelData using these
+        # sometimes got mistakenly stored in apiToPyData using these
         # fully-translated names...
         fullyTranslatedName = factories._getApiOverrideNameAndData(apiClsName, pyNodeName, apiMethodName)[0]
         if fullyTranslatedName not in pyMethodNames:
@@ -901,8 +901,8 @@ class ApiMelDataKeyTranslator(object):
 
         self.info("checking method %s (oldKey: %s)" % (apiMethodName, oldKey))
 
-        if oldKey not in self.apiToMelData:
-            self.info("found no old key in apiToMelData... skipping method...")
+        if oldKey not in self.apiToPyData:
+            self.info("found no old key in apiToPyData... skipping method...")
             return
         source = (apiClsName, apiMethodName)
 
@@ -951,13 +951,13 @@ class ApiMelDataKeyTranslator(object):
             self.addApiTranslation(oldKey, newKey, source)
 
     def addApiTranslation(self, oldKey, newKey, source):
-        data = self.apiToMelData[oldKey]
+        data = self.apiToPyData[oldKey]
         otherOldKey = self.newToOldKey.get(newKey)
 
         if otherOldKey is not None:
             self.info("found two old keys - %s, %s - both mapping to same new key - %s" % (otherOldKey, oldKey, newKey))
-            otherData = self.newApiMelData[newKey]
-            assert otherData == self.apiToMelData[otherOldKey]
+            otherData = self.newApiToPyData[newKey]
+            assert otherData == self.apiToPyData[otherOldKey]
             if not self.apiMelDataEqual(data, otherData):
                 print "data for old keys %s and %s did not match" % (otherOldKey, oldKey)
                 print "newKey   : %s" % (newKey,)
@@ -973,14 +973,14 @@ class ApiMelDataKeyTranslator(object):
             self.info("...adding data: oldKey: %s - newKey: %s - source: %s" % (oldKey, newKey, source))
             self.oldToNewKey[oldKey] = newKey
             self.newToOldKey[newKey] = oldKey
-            self.newApiMelData[newKey] = data
+            self.newApiToPyData[newKey] = data
             self.translationSources[oldKey] = source
 
     def doCmdMethodTranslation(self, pyNodeName, pyMethodName):
         key = (pyNodeName, pyMethodName)
-        data = self.apiToMelData.get(key)
+        data = self.apiToPyData.get(key)
         if data is not None:
-            self.newCmdsWrapData[key] = data
+            self.newCmdsToPyData[key] = data
 
     def apiMelDataEqual(self, data1, data2):
         if data1 == data2:

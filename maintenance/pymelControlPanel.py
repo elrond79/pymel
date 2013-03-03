@@ -1,7 +1,7 @@
 """
 UI for controlling how api classes and mel commands are combined into pymel classes.
 
-This UI modifies factories.apiToMelData which is pickled out to apiMelBridge.
+This UI modifies factories.apiToPyData which is pickled out to apiMelBridge.
 
 It controls:
     which mel methods correspond to api methods
@@ -26,7 +26,7 @@ VERBOSE = True
 class PymelControlPanel(object):
     def __init__(self):
         # key is a tuple of (class, method)
-        self.classList = sorted( list( set( [ key[0] for key in factories.apiToMelData.keys()] ) ) )
+        self.classList = sorted( list( set( [ key[0] for key in factories.apiToPyData.keys()] ) ) )
         self.classFrames={}
         self.processClassFrames()
         self.buildUI()
@@ -139,8 +139,8 @@ class PymelControlPanel(object):
             clsname = csel[0]
             menu.removeItem(method)
             self.disabledMelMethodLister.append( method  )
-            #print clsname, method, factories.apiToMelData[ (clsname, method) ]
-            factories.apiToMelData[ (clsname, method) ]['melEnabled'] = False
+            #print clsname, method, factories.apiToPyData[ (clsname, method) ]
+            factories.apiToPyData[ (clsname, method) ]['melEnabled'] = False
 
     def enableMelMethod(self):
         menu = self.disabledMelMethodLister
@@ -151,8 +151,8 @@ class PymelControlPanel(object):
             clsname = csel[0]
             menu.removeItem(method)
             self.unassignedMelMethodLister.append( method  )
-            #print clsname, method, factories.apiToMelData[ (clsname, method) ]
-            factories.apiToMelData[ (clsname, method) ].pop('melEnabled')
+            #print clsname, method, factories.apiToPyData[ (clsname, method) ]
+            factories.apiToPyData[ (clsname, method) ].pop('melEnabled')
 
     @staticmethod
     def getMelMethods(className):
@@ -194,7 +194,7 @@ class PymelControlPanel(object):
 
     def processClassFrames(self):
         """
-        This triggers the generation of all the defaults for `factories.apiToMelData`, but it does
+        This triggers the generation of all the defaults for `factories.apiToPyData`, but it does
         not create any UI elements.  It creates `ClassFrame` instances, which in turn create
         `MethodRow` instances, but the creation of UI elements is delayed until a particular
         configuration is requested via `buildClassColumn`.
@@ -229,12 +229,12 @@ class PymelControlPanel(object):
         melMethods = self.getMelMethods(className)
         for method in melMethods:
             # fix
-            if (className, method) in factories.apiToMelData and factories.apiToMelData[ (className, method) ] == {'enabled':False}:
-                d = factories.apiToMelData.pop( (className, method) )
+            if (className, method) in factories.apiToPyData and factories.apiToPyData[ (className, method) ] == {'enabled':False}:
+                d = factories.apiToPyData.pop( (className, method) )
                 d.pop('enabled')
                 d['melEnabled'] = False
 
-            if (className, method) in factories.apiToMelData and factories.apiToMelData[(className, method)].get('melEnabled',True) == False:
+            if (className, method) in factories.apiToPyData and factories.apiToPyData[(className, method)].get('melEnabled',True) == False:
                 self.disabledMelMethodLister.append( method )
             else:
                 self.unassignedMelMethodLister.append( method )
@@ -435,10 +435,10 @@ class MethodRow(object):
     def crossReference(self, melName):
         """ create an entry for the melName which points to the data being tracked for the api name"""
 
-        factories.apiToMelData[ (self.className, melName ) ] = self.data
+        factories.apiToPyData[ (self.className, melName ) ] = self.data
 
     def uncrossReference(self, melName):
-        factories.apiToMelData.pop( (self.className, melName ) )
+        factories.apiToPyData.pop( (self.className, melName ) )
 
     def updateMelNames(self, melMethods):
         # melName
