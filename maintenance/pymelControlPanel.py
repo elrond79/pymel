@@ -413,19 +413,21 @@ class MethodRow(object):
             self.data['melName'] = str(self.data['melName'])
 
 
-        overloadId = self.data.get('overloadIndex', 0)
-        if overloadId is None:
-            # in a previous test, it was determined there were no wrappable overload methods,
-            # but there may be now.  try again.
-            overloadId = 0
-
-        # ensure we don't use a value that is not valid
-        for i in range(overloadId, len(enabledArray)+1):
-            try:
-                if enabledArray[i]:
-                    break
-            except IndexError: # went too far, so none are valid
+        overloadId = self.data.get('overloadIndex', None)
+        if overloadId is not None:
+            # ensure we don't use a value that is not valid
+            if not enabledArray[overloadId]:
                 overloadId = None
+                
+        if overloadId is None:
+            # if it's None, we either determined at some point in the past that
+            # no overloads were valid... but it's possible that some are now...
+            # or we were given an overloadId which is now invalid
+            # In either case, try to find the first valid overload...
+            for i, enabled in enumerate(enabledArray):
+                if enabled:
+                    overloadId = i
+                    break
 #        if val is None:
 #            # nothing valid
 #            self.data.pop('overloadIndex', None)
