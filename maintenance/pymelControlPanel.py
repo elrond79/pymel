@@ -4,7 +4,7 @@ UI for controlling how api classes and mel commands are combined into pymel clas
 This UI modifies factories.apiToPyData which is pickled out to apiMelBridge.
 
 It controls:
-    which mel methods correspond to api methods
+    which mel methods correspond to api methods (currently only used for naming of the api method)
     disabling of api methods
     preference for overloaded methods (since currently only one overloaded method is supported)
     renaming of apiMethod

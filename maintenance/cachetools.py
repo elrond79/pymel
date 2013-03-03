@@ -712,6 +712,57 @@ class ApiMelTranlateError(Exception): pass
 class ApiMelTranlateNewKeyError(ApiMelTranlateError): pass
 class ApiMelTranlateOldKeyError(ApiMelTranlateError): pass
 
+# old possible parameters in apiToMelData, for each cls/method:
+#
+# enabled - whether the api wrap was enabled (but also had an inverse enabling
+#     of the cmds wrap - ie, if 'melEnabled' is True OR 'enabled' is
+#     False, the cmd wrap will be done... meaning there was no
+#     "permanent" way to disable BOTH the api and cmd wrap (you could
+#     "temporarily" disable both by setting 'overloadIndex' to None, but
+#     see the note for that
+# melEnabled - whether the cmd wrap was enabled (but this could also be
+#     controlled by enabled - see above); defaults to False
+# melName - the name of the associated cmd wrap - in practice, is only used
+#     for determining the name of wrapped method, if 'useName' is API
+# overloadIndex - which api overload to use for the wrap; if None, then no api
+#     method wrap is made, effectively disabling it; however, as opposed to the
+#     'enabled' flag, this will be re-calculated every time pymelControlPanel is
+#     run, effectively making it mean "i don't know", and the disabling
+#     (potentially) temporary; defaults to None
+# useName - controls what pymel name to map this method to - if API, it uses
+#     the value stored in the 'pymelName' from apiClassInfo; if MEL, it uses the
+#     value in melName; otherwise, it is a custom name that is used directly
+
+# new parameters for apiToPyData
+#
+# enabled - whether this api method wrap should be applied for this PyNode; if
+#     True, a new wrap will always be done for the node (even if an
+#     ancestor PyNode already wrapped it); if False, it will not be
+#     wrapped for this class (though it may inherit a wrap from an
+#     ancestor PyNode); and if None, it will be wrapped if no ancestor
+#     has wrapped it, otherwise it will not be wrapped; defaults to None
+# overloadIndex - which api overload to use for the wrap; if None, then no api
+#     method wrap is made, effectively disabling it; however, as opposed to the
+#     'enabled' flag, this will be re-calculated every time the api cache is
+#     rebuilt OR pymelControlPanel is run, effectively making it mean "i don't
+#     know", and the disabling (potentially) temporary; defaults to None
+# useName - controls what pymel name to map this method to - if None, it uses
+#     the value stored in the 'pymelName' from apiClassInfo; otherwise, it
+#     is a custom name that is used directly
+#
+# new parameters for cmdsToPyData
+#
+# enabled - whether this cmd flag wrap should be applied for this PyNode
+# useName - controls what pymel name to map this method to - if None, it uses
+#     the name value cmdlist; otherwise, it is a custom name that is used
+#     directly
+#
+# Additonally, there is a new TwoWayDict apiCmdsEquivalents which stores
+# information about equivalent cmd/api wraps; it has no functional effect on
+# how things are wrapped, and is only used within the pymelControlPanel gui
+# to provide an easier way to link the setting of data for similar methods
+
+
 class ApiMelDataKeyTranslator(object):
     TO_DELETE_CLASSES = set([
                              'Angle',
