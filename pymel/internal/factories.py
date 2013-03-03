@@ -1225,6 +1225,8 @@ def createFunctions( moduleName, returnFunc=None ):
 overrideMethods = {}
 overrideMethods['Constraint'] = ('getWeight', 'setWeight')
 
+# methods for which mel cmd wraps should not be made
+filterCmdMethods = ['name', 'getName', 'setName']
 
 class ApiTypeRegister(object):
     """"
@@ -2738,9 +2740,10 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
             classdict['__melcmdname__'] = melCmdName
             classdict['__melcmd_isinfo__'] = infoCmd
 
-            filterAttrs = ['name', 'getName', 'setName'] + classdict.keys()
-            filterAttrs += overrideMethods.get( bases[0].__name__ , [] )
-            #filterAttrs += newcls.__dict__.keys()
+            filterAttrs = filterCmdMethods + classdict.keys()
+            parentClasses = [ x.__name__ for x in inspect.getmro( newcls )[1:] ]
+            for parent in parentClasses:
+                filterAttrs += overrideMethods.get(parent, [])
 
             parentClasses = [ x.__name__ for x in inspect.getmro( newcls )[1:] ]
             for flag, flagInfo in cmdInfo['flags'].items():
@@ -2758,15 +2761,8 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
                     # query command
                     if 'query' in modes:
                         methodName = 'get' + util.capitalize(flag)
+                        if cls.melMethodWrappable(newcls, methodName, parentClasses, filterAttrs):
 
-                        if methodName not in filterAttrs and \
-                                ( not hasattr(newcls, methodName) or cls.isMelMethod(methodName, parentClasses) ):
-
-                            # 'enabled' refers to whether the API version of this method will be used.
-                            # if the method is enabled that means we skip it here.
-                            if not apiToPyData.has_key((classname,methodName)) \
-                                or apiToPyData[(classname,methodName)].get('melEnabled',False) \
-                                or not apiToPyData[(classname,methodName)].get('enabled',True):
                                 classToMelMap[classname].append( methodName )
                                 returnFunc = None
 
@@ -2798,12 +2794,7 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
                         #if there is not a matching 'set' and 'get' pair, we use the flag name as the method name
                         else:
                             methodName = flag
-
-                        if methodName not in filterAttrs and \
-                                ( not hasattr(newcls, methodName) or cls.isMelMethod(methodName, parentClasses) ):
-                            if not apiToPyData.has_key((classname,methodName)) \
-                                or apiToPyData[(classname,methodName)].get('melEnabled',False) \
-                                or not apiToPyData[(classname,methodName)].get('enabled', True):
+                        if cls.melMethodWrappable(newcls, methodName, parentClasses, filterAttrs):
                                 classToMelMap[classname].append( methodName )
                                 #FIXME: shouldn't we be able to use the wrapped pymel command, which is already fixed?
                                 fixedFunc = fixCallbacks( func, melCmdName )
@@ -2835,6 +2826,26 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
         """
         for classname in parentClassList:
             if methodName in classToMelMap[classname]:
+                return True
+        return False
+
+    @classmethod
+    def melMethodWrappable(cls, newcls, methodName, parentClasses, filterAttrs):
+        if (methodName not in filterAttrs and
+                # don't want to override an existing
+                # attribute...
+                ( not hasattr(newcls, methodName)
+                # UNLESS it's also another mel method... (ie,
+                # OptionMenuGrp.setWidth should replace
+                # RowLayout's setWidth)
+                  or cls.isMelMethod(methodName, parentClasses)
+                )):
+            # 'enabled' refers to whether the API version of this method will be used.
+            # if the method is enabled that means we skip it here.
+            classname = newcls.__name__
+            if (not apiToPyData.has_key((classname, methodName))
+                    or apiToPyData[(classname,methodName)].get('melEnabled',False)
+                    or not apiToPyData[(classname, methodName)].get('enabled',True)):
                 return True
         return False
 
