@@ -1079,3 +1079,9 @@ class ApiMelDataKeyTranslator(object):
                     better = 2
                 break
         return better
+
+    def writeTranslatedCache(self):
+        cacheObj= apicache.ApiMelBridgeCache()
+        oldCache = cacheObj.read()
+        newCache = (self.newApiMelData, self.newCmdsWrapData, oldCache[1])
+        cacheObj.write(newCache)
