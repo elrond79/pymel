@@ -159,8 +159,7 @@ class PymelControlPanel(object):
         """get all mel-derived methods for this class"""
         reg = re.compile('(.*[a-z])([XYZ])$')
         newlist = []
-        origlist = factories.classToMelMap[className]
-        for method in origlist:
+        for method in factories.classToCmdMap[className]:
             m = reg.search(method)
             if m:
                 # strip off the XYZ component and replace with *
@@ -418,7 +417,7 @@ class MethodRow(object):
             # ensure we don't use a value that is not valid
             if not enabledArray[overloadId]:
                 overloadId = None
-                
+
         if overloadId is None:
             # if it's None, we either determined at some point in the past that
             # no overloads were valid... but it's possible that some are now...

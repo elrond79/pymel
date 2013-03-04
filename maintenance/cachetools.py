@@ -5,6 +5,8 @@ import os.path
 import re
 import copy
 import fnmatch
+import inspect
+import logging
 
 import pymel.core as pm
 import pymel.internal.factories as factories
@@ -708,9 +710,9 @@ def getSparseFromDelta(delta, orig):
 # pymel name for only one)... and we need to use api method names for the
 # reasons outlined above.
 
-class ApiMelTranlateError(Exception): pass
-class ApiMelTranlateNewKeyError(ApiMelTranlateError): pass
-class ApiMelTranlateOldKeyError(ApiMelTranlateError): pass
+class WrapTranslateError(Exception): pass
+class WrapTranslateNewKeyError(WrapTranslateError): pass
+class WrapTranslateOldKeyError(WrapTranslateError): pass
 
 # old possible parameters in apiToMelData, for each cls/method:
 #
@@ -748,14 +750,18 @@ class ApiMelTranlateOldKeyError(ApiMelTranlateError): pass
 #     know", and the disabling (potentially) temporary; defaults to None
 # useName - controls what pymel name to map this method to - if None, it uses
 #     the value stored in the 'pymelName' from apiClassInfo; otherwise, it
-#     is a custom name that is used directly
+#     is a custom name that is used directly; defaults to None
 #
-# new parameters for cmdsToPyData
+# new parameters for cmdsToPyData - keys are (cmdName, flagName, cmdType) -
+#     ie, ('camera', 'farClipPlane', 'set')
 #
-# enabled - whether this cmd flag wrap should be applied for this PyNode
+# enabled - whether this cmd flag wrap should be applied for this PyNode;
+#     if set to True/False, then the method is wrapped; if None, then it is
+#     wrapped if the name is not present on the class, or if it is, but it was
+#     from another mel cmd wrap; defaults to None
 # useName - controls what pymel name to map this method to - if None, it uses
-#     the name value cmdlist; otherwise, it is a custom name that is used
-#     directly
+#     the default name, generated from _MetaMayaCommandWrapper.flagToMethodName;
+#     otherwise, it is a custom name that is used directly; defaults to None
 #
 # Additonally, there is a new TwoWayDict apiCmdsEquivalents which stores
 # information about equivalent cmd/api wraps; it has no functional effect on
@@ -763,7 +769,7 @@ class ApiMelTranlateOldKeyError(ApiMelTranlateError): pass
 # to provide an easier way to link the setting of data for similar methods
 
 
-class ApiMelDataKeyTranslator(object):
+class WrapDataTranslator(object):
     TO_DELETE_CLASSES = set([
                              'Angle',
                             ])
@@ -772,10 +778,12 @@ class ApiMelDataKeyTranslator(object):
                              ('TransformationMatrix', 'rotation'),
                              # these are just the unTranslated items... tested,
                              # and they never seem to be accessed...
-                             ('AnimCurve', 'setTangentTypes'), ('AttrHierarchyTest', 'enableDGTiming'), ('AttrHierarchyTest', 'getIcon'), ('AttrHierarchyTest', 'setIcon'), ('Attribute', 'asMDataHandle'), ('AttributeDefaults', 'getParent'), ('AttributeDefaults', 'setParent'), ('Camera', 'getEyeOffset'), ('Camera', 'isParallelView'), ('Camera', 'isStereo'), ('Camera', 'setEyeOffset'), ('Camera', 'setParallelView'), ('Camera', 'setStereo'), ('CameraSet', 'getLayerClearDepthValue'), ('CameraSet', 'setLayerClearDepthValue'), ('DagNode', 'activeColor'), ('DagNode', 'dormantColor'), ('DagNode', 'drawOverrideColor'), ('DagNode', 'drawOverrideEnabled'), ('DagNode', 'drawOverrideIsReference'), ('DagNode', 'drawOverrideIsTemplate'), ('DagNode', 'hiliteColor'), ('DagNode', 'usingHiliteColor'), ('DataBlockTest', 'enableDGTiming'), ('DataBlockTest', 'getIcon'), ('DataBlockTest', 'setIcon'), ('DependNode', 'enableDGTiming'), ('DependNode', 'getIcon'), ('DependNode', 'setIcon'), ('Distance', 'as'), ('Distance', 'asCentimeters'), ('Distance', 'asFeet'), ('Distance', 'asInches'), ('Distance', 'asKilometers'), ('Distance', 'asMeters'), ('Distance', 'asMiles'), ('Distance', 'asMillimeters'), ('Distance', 'asUnits'), ('Distance', 'asYards'), ('Distance', 'className'), ('Distance', 'getInternalUnit'), ('Distance', 'getUnit'), ('Distance', 'getValue'), ('Distance', 'internalToUI'), ('Distance', 'internalUnit'), ('Distance', 'setInternalUnit'), ('Distance', 'setUIUnit'), ('Distance', 'setUnit'), ('Distance', 'setValue'), ('Distance', 'uiToInternal'), ('Distance', 'uiUnit'), ('Entity', 'addAttribute'), ('Entity', 'allocateFlag'), ('Entity', 'attribute'), ('Entity', 'attributeClass'), ('Entity', 'attributeCount'), ('Entity', 'canBeWritten'), ('Entity', 'classification'), ('Entity', 'create'), ('Entity', 'deallocateAllFlags'), ('Entity', 'deallocateFlag'), ('Entity', 'dgCallbackIds'), ('Entity', 'dgCallbacks'), ('Entity', 'dgTimer'), ('Entity', 'dgTimerOff'), ('Entity', 'dgTimerOn'), ('Entity', 'dgTimerQueryState'), ('Entity', 'dgTimerReset'), ('Entity', 'enableDGTiming'), ('Entity', 'findAlias'), ('Entity', 'findPlug'), ('Entity', 'getAffectedAttributes'), ('Entity', 'getAffectedByAttributes'), ('Entity', 'getAliasAttr'), ('Entity', 'getAliasList'), ('Entity', 'getConnections'), ('Entity', 'getIcon'), ('Entity', 'getName'), ('Entity', 'getPlugsAlias'), ('Entity', 'hasAttribute'), ('Entity', 'hasUniqueName'), ('Entity', 'isDefaultNode'), ('Entity', 'isFlagSet'), ('Entity', 'isFromReferencedFile'), ('Entity', 'isLocked'), ('Entity', 'isNewAttribute'), ('Entity', 'isShared'), ('Entity', 'parentNamespace'), ('Entity', 'pluginName'), ('Entity', 'plugsAlias'), ('Entity', 'removeAttribute'), ('Entity', 'reorderedAttribute'), ('Entity', 'setAlias'), ('Entity', 'setDoNotWrite'), ('Entity', 'setFlag'), ('Entity', 'setIcon'), ('Entity', 'setLocked'), ('Entity', 'setName'), ('Entity', 'typeId'), ('Entity', 'typeName'), ('Entity', 'userNode'), ('HierarchyTestNode1', 'enableDGTiming'), ('HierarchyTestNode1', 'getIcon'), ('HierarchyTestNode1', 'setIcon'), ('HierarchyTestNode2', 'enableDGTiming'), ('HierarchyTestNode2', 'getIcon'), ('HierarchyTestNode2', 'setIcon'), ('HierarchyTestNode3', 'enableDGTiming'), ('HierarchyTestNode3', 'getIcon'), ('HierarchyTestNode3', 'setIcon'), (u'Joint', u'getRelative'), (u'Joint', u'setRelative'), ('LightSet', 'addMember'), ('LightSet', 'addMembers'), ('LightSet', 'className'), ('LightSet', 'clear'), ('LightSet', 'create'), ('LightSet', 'getAnnotation'), ('LightSet', 'getIntersection'), ('LightSet', 'getMembers'), ('LightSet', 'getUnion'), ('LightSet', 'hasRestrictions'), ('LightSet', 'intersectsWith'), ('LightSet', 'isMember'), ('LightSet', 'removeMember'), ('LightSet', 'removeMembers'), ('LightSet', 'restriction'), ('LightSet', 'setAnnotation'), ('LightSet', 'type'), ('MFnSet', 'getIntersection'), ('MFnSet', 'getIntersectn'), ('MatteSet', 'addMember'), ('MatteSet', 'addMembers'), ('MatteSet', 'className'), ('MatteSet', 'clear'), ('MatteSet', 'create'), ('MatteSet', 'getAnnotation'), ('MatteSet', 'getIntersection'), ('MatteSet', 'getMembers'), ('MatteSet', 'getUnion'), ('MatteSet', 'hasRestrictions'), ('MatteSet', 'intersectsWith'), ('MatteSet', 'isMember'), ('MatteSet', 'removeMember'), ('MatteSet', 'removeMembers'), ('MatteSet', 'restriction'), ('MatteSet', 'setAnnotation'), ('MatteSet', 'type'), ('Mesh', 'addHoles'), ('Mesh', 'copyUVSet'), ('Mesh', 'createColorSet'), ('Mesh', 'createUVSet'), ('Mesh', 'getDisplayColors'), ('Mesh', 'polyTriangulate'), ('Mesh', 'setDisplayColors'), ('OldBlindDataBase', 'enableDGTiming'), ('OldBlindDataBase', 'getIcon'), ('OldBlindDataBase', 'setIcon'), ('RadialField', 'getRadialType'), ('RadialField', 'setRadialType'), ('SimpleTestNode', 'enableDGTiming'), ('SimpleTestNode', 'getIcon'), ('SimpleTestNode', 'setIcon'), ('SwitchColorSet', 'addMember'), ('SwitchColorSet', 'addMembers'), ('SwitchColorSet', 'className'), ('SwitchColorSet', 'clear'), ('SwitchColorSet', 'create'), ('SwitchColorSet', 'getAnnotation'), ('SwitchColorSet', 'getIntersection'), ('SwitchColorSet', 'getMembers'), ('SwitchColorSet', 'getUnion'), ('SwitchColorSet', 'hasRestrictions'), ('SwitchColorSet', 'intersectsWith'), ('SwitchColorSet', 'isMember'), ('SwitchColorSet', 'removeMember'), ('SwitchColorSet', 'removeMembers'), ('SwitchColorSet', 'restriction'), ('SwitchColorSet', 'setAnnotation'), ('SwitchColorSet', 'type'), ('TextureToGeom', 'enableDGTiming'), ('TextureToGeom', 'getIcon'), ('TextureToGeom', 'setIcon'), ('Time', '__add__'), ('Time', '__div__'), ('Time', '__eq__'), ('Time', '__mul__'), ('Time', '__neq__'), ('Time', '__radd__'), ('Time', '__rdiv__'), ('Time', '__rmult__'), ('Time', '__rsub__'), ('Time', '__sub__'), ('Time', 'as'), ('Time', 'getUnit'), ('Time', 'getValue'), ('Time', 'setUIUnit'), ('Time', 'setUnit'), ('Time', 'setValue'), ('Time', 'uiUnit')
+                             #('AnimCurve', 'setTangentTypes'), ('AttrHierarchyTest', 'enableDGTiming'), ('AttrHierarchyTest', 'getIcon'), ('AttrHierarchyTest', 'setIcon'), ('Attribute', 'asMDataHandle'), ('AttributeDefaults', 'getParent'), ('AttributeDefaults', 'setParent'), ('Camera', 'getEyeOffset'), ('Camera', 'isParallelView'), ('Camera', 'isStereo'), ('Camera', 'setEyeOffset'), ('Camera', 'setParallelView'), ('Camera', 'setStereo'), ('CameraSet', 'getLayerClearDepthValue'), ('CameraSet', 'setLayerClearDepthValue'), ('DagNode', 'activeColor'), ('DagNode', 'dormantColor'), ('DagNode', 'drawOverrideColor'), ('DagNode', 'drawOverrideEnabled'), ('DagNode', 'drawOverrideIsReference'), ('DagNode', 'drawOverrideIsTemplate'), ('DagNode', 'hiliteColor'), ('DagNode', 'usingHiliteColor'), ('DataBlockTest', 'enableDGTiming'), ('DataBlockTest', 'getIcon'), ('DataBlockTest', 'setIcon'), ('DependNode', 'enableDGTiming'), ('DependNode', 'getIcon'), ('DependNode', 'setIcon'), ('Distance', 'as'), ('Distance', 'asCentimeters'), ('Distance', 'asFeet'), ('Distance', 'asInches'), ('Distance', 'asKilometers'), ('Distance', 'asMeters'), ('Distance', 'asMiles'), ('Distance', 'asMillimeters'), ('Distance', 'asUnits'), ('Distance', 'asYards'), ('Distance', 'className'), ('Distance', 'getInternalUnit'), ('Distance', 'getUnit'), ('Distance', 'getValue'), ('Distance', 'internalToUI'), ('Distance', 'internalUnit'), ('Distance', 'setInternalUnit'), ('Distance', 'setUIUnit'), ('Distance', 'setUnit'), ('Distance', 'setValue'), ('Distance', 'uiToInternal'), ('Distance', 'uiUnit'), ('Entity', 'addAttribute'), ('Entity', 'allocateFlag'), ('Entity', 'attribute'), ('Entity', 'attributeClass'), ('Entity', 'attributeCount'), ('Entity', 'canBeWritten'), ('Entity', 'classification'), ('Entity', 'create'), ('Entity', 'deallocateAllFlags'), ('Entity', 'deallocateFlag'), ('Entity', 'dgCallbackIds'), ('Entity', 'dgCallbacks'), ('Entity', 'dgTimer'), ('Entity', 'dgTimerOff'), ('Entity', 'dgTimerOn'), ('Entity', 'dgTimerQueryState'), ('Entity', 'dgTimerReset'), ('Entity', 'enableDGTiming'), ('Entity', 'findAlias'), ('Entity', 'findPlug'), ('Entity', 'getAffectedAttributes'), ('Entity', 'getAffectedByAttributes'), ('Entity', 'getAliasAttr'), ('Entity', 'getAliasList'), ('Entity', 'getConnections'), ('Entity', 'getIcon'), ('Entity', 'getName'), ('Entity', 'getPlugsAlias'), ('Entity', 'hasAttribute'), ('Entity', 'hasUniqueName'), ('Entity', 'isDefaultNode'), ('Entity', 'isFlagSet'), ('Entity', 'isFromReferencedFile'), ('Entity', 'isLocked'), ('Entity', 'isNewAttribute'), ('Entity', 'isShared'), ('Entity', 'parentNamespace'), ('Entity', 'pluginName'), ('Entity', 'plugsAlias'), ('Entity', 'removeAttribute'), ('Entity', 'reorderedAttribute'), ('Entity', 'setAlias'), ('Entity', 'setDoNotWrite'), ('Entity', 'setFlag'), ('Entity', 'setIcon'), ('Entity', 'setLocked'), ('Entity', 'setName'), ('Entity', 'typeId'), ('Entity', 'typeName'), ('Entity', 'userNode'), ('HierarchyTestNode1', 'enableDGTiming'), ('HierarchyTestNode1', 'getIcon'), ('HierarchyTestNode1', 'setIcon'), ('HierarchyTestNode2', 'enableDGTiming'), ('HierarchyTestNode2', 'getIcon'), ('HierarchyTestNode2', 'setIcon'), ('HierarchyTestNode3', 'enableDGTiming'), ('HierarchyTestNode3', 'getIcon'), ('HierarchyTestNode3', 'setIcon'), (u'Joint', u'getRelative'), (u'Joint', u'setRelative'), ('LightSet', 'addMember'), ('LightSet', 'addMembers'), ('LightSet', 'className'), ('LightSet', 'clear'), ('LightSet', 'create'), ('LightSet', 'getAnnotation'), ('LightSet', 'getIntersection'), ('LightSet', 'getMembers'), ('LightSet', 'getUnion'), ('LightSet', 'hasRestrictions'), ('LightSet', 'intersectsWith'), ('LightSet', 'isMember'), ('LightSet', 'removeMember'), ('LightSet', 'removeMembers'), ('LightSet', 'restriction'), ('LightSet', 'setAnnotation'), ('LightSet', 'type'), ('MFnSet', 'getIntersection'), ('MFnSet', 'getIntersectn'), ('MatteSet', 'addMember'), ('MatteSet', 'addMembers'), ('MatteSet', 'className'), ('MatteSet', 'clear'), ('MatteSet', 'create'), ('MatteSet', 'getAnnotation'), ('MatteSet', 'getIntersection'), ('MatteSet', 'getMembers'), ('MatteSet', 'getUnion'), ('MatteSet', 'hasRestrictions'), ('MatteSet', 'intersectsWith'), ('MatteSet', 'isMember'), ('MatteSet', 'removeMember'), ('MatteSet', 'removeMembers'), ('MatteSet', 'restriction'), ('MatteSet', 'setAnnotation'), ('MatteSet', 'type'), ('Mesh', 'addHoles'), ('Mesh', 'copyUVSet'), ('Mesh', 'createColorSet'), ('Mesh', 'createUVSet'), ('Mesh', 'getDisplayColors'), ('Mesh', 'polyTriangulate'), ('Mesh', 'setDisplayColors'), ('OldBlindDataBase', 'enableDGTiming'), ('OldBlindDataBase', 'getIcon'), ('OldBlindDataBase', 'setIcon'), ('RadialField', 'getRadialType'), ('RadialField', 'setRadialType'), ('SimpleTestNode', 'enableDGTiming'), ('SimpleTestNode', 'getIcon'), ('SimpleTestNode', 'setIcon'), ('SwitchColorSet', 'addMember'), ('SwitchColorSet', 'addMembers'), ('SwitchColorSet', 'className'), ('SwitchColorSet', 'clear'), ('SwitchColorSet', 'create'), ('SwitchColorSet', 'getAnnotation'), ('SwitchColorSet', 'getIntersection'), ('SwitchColorSet', 'getMembers'), ('SwitchColorSet', 'getUnion'), ('SwitchColorSet', 'hasRestrictions'), ('SwitchColorSet', 'intersectsWith'), ('SwitchColorSet', 'isMember'), ('SwitchColorSet', 'removeMember'), ('SwitchColorSet', 'removeMembers'), ('SwitchColorSet', 'restriction'), ('SwitchColorSet', 'setAnnotation'), ('SwitchColorSet', 'type'), ('TextureToGeom', 'enableDGTiming'), ('TextureToGeom', 'getIcon'), ('TextureToGeom', 'setIcon'), ('Time', '__add__'), ('Time', '__div__'), ('Time', '__eq__'), ('Time', '__mul__'), ('Time', '__neq__'), ('Time', '__radd__'), ('Time', '__rdiv__'), ('Time', '__rmult__'), ('Time', '__rsub__'), ('Time', '__sub__'), ('Time', 'as'), ('Time', 'getUnit'), ('Time', 'getValue'), ('Time', 'setUIUnit'), ('Time', 'setUnit'), ('Time', 'setValue'), ('Time', 'uiUnit')
+                             ('Mesh', 'copyUVSet'),
                             ])
+    TO_DELETE_METHODNAMES = set(['enum', 'className'])
 
-    def __init__(self, verbose=False, apiClassInfo=None, apiToPyData=None,
+    def __init__(self, logLevel=logging.WARNING, apiClassInfo=None, apiToPyData=None,
                  fromCache=True):
         # make sure we trigger loading of all dynamic modules, and all their
         # members...
@@ -800,49 +808,57 @@ class ApiMelDataKeyTranslator(object):
 
         self.apiClassInfo = apiClassInfo
         self.apiToPyData = apiToPyData
-        self.verbose = verbose
+        self.logger = logging.getLogger('.'.join([__name__, 'WrapDataTranslator']))
+        self.logger.setLevel(logLevel)
 
         self.newApiToPyData = {}
-        self.newCmdsToPyData = {}
+        self.apiOldToNewKey = {}
+        self.apiNewToOldKey = {}
+        self.apiTranslationSources = {}
 
-        self.oldToNewKey = {}
-        self.newToOldKey = {}
+        self.newCmdsToPyData = {}
+        self.cmdsOldToNewKey = {}
+        self.cmdsNewToOldKey = {}
+        self.cmdsTranslationSources = {}
+
+        self.newApiCmdsEquivalents = {}
 
         # old keys which were not used, and will be removed in the new map
         self.deleted = set()
 
-        # the apiCls / apiMethod that the old-to-new map was made using
-        self.translationSources = {}
-
-        # may have two old keys which both contain info for the same new key -
-        # ie, may have old keys ('Angle', 'internalUnit') and ('Angle',
-        # 'getInternalUnit'), both of which map to the new key ('Angle',
-        # 'internalUnit').
-        # As long as the data stored for both old keys is the same, we're ok,
-        # and the second keys found will be stored in this set
-        self.duplicateOldKeys = set()
+    def debug(self, msg):
+        self.logger.debug(msg)
 
     def info(self, msg):
-        if self.verbose:
-            print msg
+        self.logger.info(msg)
+
+    def warn(self, msg):
+        self.logger.warn(msg)
+
+    def error(self, msg):
+        self.logger.debug(msg)
 
     def translateAll(self):
+        self.translateKeys()
+        self.translateData()
+
+    def translateKeys(self):
         import pymel.api.plugins as plugins
         # want to get as many maya nodes as possible...
         plugins.loadAllMayaPlugins()
 
-        print "num nonTranslated:", len(self.nonTranslated())
+        print "num nonTranslated (start)  :", len(self.nonTranslated())
 
-        for apiClsName, clsInfo in self.apiClassInfo.iteritems():
+        for apiClsName in self.apiClassInfo:
         #for apiClsName, clsInfo in [('MFnLattice', apiClassInfo['MFnLattice'])]:
             try:
                 pyNodeName = factories.apiClassNamesToPyNodeNames[apiClsName]
             except KeyError:
                 continue
-            #self.doClsHierTranslation(apiClsName, pyNodeName)
-            self.doClsTranslation(apiClsName, pyNodeName)
+            self.doApiHierKeyTranslation(apiClsName, pyNodeName)
+            #self.doApiClsKeyTranslation(apiClsName, pyNodeName)
 
-        print "num nonTranslated:", len(self.nonTranslated())
+        print "num nonTranslated (mfns)   :", len(self.nonTranslated())
 
         #for pyNode in fac.mayaTypesToApiTypes:
         #for pyNode in [pm.nt.Airfield]:
@@ -852,25 +868,27 @@ class ApiMelDataKeyTranslator(object):
             pyNodeName = pm.util.capitalize(mayaType)
             apiCls = factories.apiTypesToApiClasses[apiEnumName]
             apiClsName = apiCls.__name__
-            #self.doClsHierTranslation(apiClsName, pyNodeName)
-            self.doClsTranslation(apiClsName, pyNodeName)
+            self.doApiHierKeyTranslation(apiClsName, pyNodeName)
+            #self.doApiClsKeyTranslation(apiClsName, pyNodeName)
 
-            try:
-                pyNode = getattr(pm.nt, pyNodeName)
-            except AttributeError:
-                pass
-            else:
-                melCmds = factories.classToMelMap.get(pyNodeName)
-                if melCmds is not None:
-                    for melCmd in melCmds:
-                        self.doCmdMethodTranslation(pyNodeName, melCmd)
+            pyMethods = factories.classToCmdMap.get(pyNodeName)
+            if pyMethods is not None:
+                for pyMethod, (cmd, flag, cmdType) in pyMethods.iteritems():
+                    self.doCmdsKeyTranslation(cmd, pyNodeName, flag, cmdType,
+                                              pyMethod)
 
-#                melCmdName = getattr(pyNode, '__melcmdname__', None)
-#                if melCmdName is not None and melCmdName in factories.cmdlist:
-#                    for flag, flagInfo in factories.cmdlist[melCmdName]['flags'].iteritems():
-#                        classToMelMap
+        print "num nonTranslated (pynodes):", len(self.nonTranslated())
 
-        print "num nonTranslated:", len(self.nonTranslated())
+        for pyNodeName, pyNode in factories.pyNodeNamesToPyNodes.iteritems():
+            cmd, isInfoCmd = pyNode.__metaclass__.getMelCmd(pyNode.__dict__)
+            if cmd not in factories.cmdlist:
+                continue
+            for flag, flagInfo in factories.cmdlist[cmd]['flags'].iteritems():
+                for pyMethod, cmdType in factories._MetaMayaCommandWrapper.flagToMethods(flag, flagInfo, isInfoCmd):
+                    self.doCmdsKeyTranslation(cmd, pyNodeName, flag, cmdType,
+                                              pyMethod)
+
+        print "num nonTranslated (cmdlist):", len(self.nonTranslated())
 
         # there's some classes that have info in apiToPyData that, as far
         # as I can tell, is never actually used anymore... use manual mappings
@@ -883,37 +901,60 @@ class ApiMelDataKeyTranslator(object):
             if apiCls is None:
                 continue
             apiClsName = apiCls.__name__
-            #self.doClsHierTranslation(apiClsName, pyNodeName)
-            self.doClsTranslation(apiClsName, pyNodeName)
+            #self.doApiHierKeyTranslation(apiClsName, pyNodeName)
+            self.doApiClsKeyTranslation(apiClsName, pyNodeName)
 
-        print "num nonTranslated:", len(self.nonTranslated())
+        print "num nonTranslated (manual) :", len(self.nonTranslated())
 
         for oldKey in self.nonTranslated():
-            if oldKey[0] in self.TO_DELETE_CLASSES or oldKey in self.TO_DELETE_METHODS:
+            pyNodeName, pyMethodName = oldKey
+            try:
+                pyNode = factories.pyNodeNamesToPyNodes[pyNodeName]
+            except KeyError:
+                pass
+            if not hasattr(pyNode, pyMethodName):
+                #print "%s.%s was missing..." % oldKey
+                #self.deleted.add(oldKey)
+                if (oldKey[0] in self.TO_DELETE_CLASSES
+                        or oldKey in self.TO_DELETE_METHODS
+                        or oldKey[1] in self.TO_DELETE_METHODNAMES):
+                    self.deleted.add(oldKey)
+
+        print "num nonTranslated (del)    :", len(self.nonTranslated())
+
+        for oldKey in self.nonTranslated():
+            pyNodeName, pyMethodName = oldKey
+            data = self.apiToPyData[oldKey]
+            if (self.apiMelDataEqual(data, {}, oldKey[1])
+                    or self.apiMelDataEqual(data, {'overloadIndex':0},
+                                            oldKey[1])
+                    or self.apiMelDataEqual(data, {'overloadIndex':None},
+                                            oldKey[1])):
                 self.deleted.add(oldKey)
 
-        print "num nonTranslated:", len(self.nonTranslated())
+        print "num nonTranslated (default):", len(self.nonTranslated())
+
 
     def nonTranslated(self):
-        return sorted(set(self.apiToPyData) - set(self.oldToNewKey)
-                      - set(self.newCmdsToPyData) - self.deleted)
+        return sorted(set(self.apiToPyData) - set(self.apiOldToNewKey)
+                      -set(self.cmdsOldToNewKey) - self.deleted)
 
-    def doClsHierTranslation(self, apiClsName, pyNodeName):
+    def doApiHierKeyTranslation(self, apiClsName, pyNodeName):
         self.info("translating hierarchy for %s / %s" % (apiClsName, pyNodeName))
         leafApiCls = getattr(pm.api, apiClsName)
         for apiCls in leafApiCls.mro():
             apiClsName = apiCls.__name__
             if apiClsName not in self.apiClassInfo:
                 continue
-            self.doClsTranslation(apiClsName, pyNodeName)
+            self.doApiClsKeyTranslation(apiClsName, pyNodeName)
 
-    def doClsTranslation(self, apiClsName, pyNodeName):
+    def doApiClsKeyTranslation(self, apiClsName, pyNodeName):
         self.info("translating %s / %s" % (apiClsName, pyNodeName))
         clsInfo = self.apiClassInfo[apiClsName]
         for apiMethodName, methodInfo in clsInfo['methods'].iteritems():
-            self.doApiMethodTranslation(apiClsName, pyNodeName, apiMethodName, methodInfo=methodInfo)
+            self.doApiMethodKeyTranslation(apiClsName, pyNodeName, apiMethodName, methodInfo=methodInfo)
 
-    def doApiMethodTranslation(self, apiClsName, pyNodeName, apiMethodName, methodInfo=None):
+    def doApiMethodKeyTranslation(self, apiClsName, pyNodeName, apiMethodName, methodInfo=None):
         if methodInfo is None:
             methodInfo = self.apiClassInfo[apiClsName]['methods'][apiMethodName]
 
@@ -927,7 +968,7 @@ class ApiMelDataKeyTranslator(object):
             pass
 
         for pyMethodName in pyMethodNames:
-            self.doApiPyMethodTranslation(apiClsName, pyNodeName, apiMethodName, pyMethodName)
+            self.doApiKeyTranslation(apiClsName, pyNodeName, apiMethodName, pyMethodName)
 
         # also try the fully-translated pymel name, because it seems data
         # sometimes got mistakenly stored in apiToPyData using these
@@ -935,35 +976,42 @@ class ApiMelDataKeyTranslator(object):
         fullyTranslatedName = factories._getApiOverrideNameAndData(apiClsName, pyNodeName, apiMethodName)[0]
         if fullyTranslatedName not in pyMethodNames:
             try:
-                self.doApiPyMethodTranslation(apiClsName, pyNodeName, apiMethodName, pyMethodName)
-            except ApiMelTranlateNewKeyError:
+                self.doApiKeyTranslation(apiClsName, pyNodeName, apiMethodName, pyMethodName)
+            except WrapTranslateNewKeyError:
                 # ...however, if there's a new-key conflict that arises when
                 # doing this, it may be because there's actually another api
                 # method with the translated name, so ignore it...
                 pass
 
-    def doApiPyMethodTranslation(self, apiClsName, pyNodeName, apiMethodName, pyMethodName):
-        oldKey = (pyNodeName, pyMethodName)
-        newKey = (pyNodeName, apiMethodName)
 
-        if oldKey[0] in self.TO_DELETE_CLASSES or oldKey in self.TO_DELETE_METHODS:
+    def _doKeyTranslation(self, rootName, pyNodeName, subName, pyMethodName,
+                          oldData, sources, oldToNew, newToOld, deciders):
+        # rootName is either the api class name, or the mel cmd name
+        # subName is either the api method name, or the mel flag name
+        oldKey = (pyNodeName, pyMethodName)
+        if isinstance(subName, tuple):
+            newKey = (pyNodeName,) + subName
+        else:
+            newKey = (pyNodeName, subName)
+
+        if pyNodeName in self.TO_DELETE_CLASSES or oldKey in self.TO_DELETE_METHODS:
             self.deleted.add(oldKey)
             return
 
-        self.info("checking method %s (oldKey: %s)" % (apiMethodName, oldKey))
+        self.info("checking %s[%s] (oldKey: %s)" % (rootName, subName, oldKey))
 
-        if oldKey not in self.apiToPyData:
-            self.info("found no old key in apiToPyData... skipping method...")
+        if oldKey not in oldData:
+            self.info("found no old key... skipping method...")
             return
-        source = (apiClsName, apiMethodName)
+        source = (rootName, subName)
 
         doAdd = False
-        if oldKey in self.oldToNewKey:
+        if oldKey in oldToNew:
             self.info("old key was already translated...")
 
-            oldCls, oldMeth = self.translationSources[oldKey]
+            oldRoot, oldSub = sources[oldKey]
 
-            better = self.preferred(oldCls, oldMeth, apiClsName, apiMethodName)
+            better = self.preferred(oldRoot, oldSub, rootName, subName, deciders)
             if better is not None:
                 # if one pick is clearly better, it doesn't matter if the newKey
                 # has changed or not - update to use the better option
@@ -972,24 +1020,21 @@ class ApiMelDataKeyTranslator(object):
                     # we only need to update if the better one is the new one
                     doAdd = True
                 else:
-                    self.info("...and old source %s was preferred" % (self.translationSources[oldKey],))
+                    self.info("...and old source %s was preferred" % (sources[oldKey],))
             else:
                 self.info("...and no preferred key could be found...")
-                #assert oldToNewKey[oldKey] == newKey, "oldKey: %s - orig newKey: %s - new newKey: %s - old source: %s - new source: %s" % (oldKey,
-                #    oldToNewKey[oldKey], newKey, translationSources[oldKey], source)
+                #assert apiOldToNewKey[oldKey] == newKey, "oldKey: %s - orig newKey: %s - new newKey: %s - old source: %s - new source: %s" % (oldKey,
+                #    apiOldToNewKey[oldKey], newKey, sources[oldKey], source)
 
                 # nothing could be preferred... check that the new key has not
                 # changed...
-                if self.oldToNewKey[oldKey] != newKey:
-                    oldSource = self.translationSources[oldKey]
+                if oldToNew[oldKey] != newKey:
+                    oldSource = sources[oldKey]
                     print "old key conflict for %s" % (oldKey,)
-                    print "orig newKey: %s - new newKey: %s" % (self.oldToNewKey[oldKey], newKey)
+                    print "orig newKey: %s - new newKey: %s" % (oldToNew[oldKey], newKey)
                     print "old source: %s - new source: %s" % (oldSource, source)
 
-                    if self.wrapped(*oldSource) is False and self.wrapped(*source) is False:
-                        print "...neither api method appears to have been wrapped, however... candidate for deletion?"
-
-                    raise ApiMelTranlateOldKeyError('old key conflict')
+                    raise WrapTranslateOldKeyError('old key conflict')
                 else:
                     self.info("...but new keys matched, so no conflict")
 
@@ -999,56 +1044,176 @@ class ApiMelDataKeyTranslator(object):
 
 
         if doAdd:
-            self.addApiTranslation(oldKey, newKey, source)
+            self._addKeyTranslation(oldKey, newKey, source, oldData, sources,
+                                    oldToNew, newToOld)
 
-    def addApiTranslation(self, oldKey, newKey, source):
-        data = self.apiToPyData[oldKey]
-        otherOldKey = self.newToOldKey.get(newKey)
+    def doApiKeyTranslation(self, apiClsName, pyNodeName, apiMethodName,
+                            pyMethodName):
+        self._doKeyTranslation(apiClsName, pyNodeName, apiMethodName,
+                               pyMethodName, self.apiToPyData,
+                               self.apiTranslationSources, self.apiOldToNewKey,
+                               self.apiNewToOldKey,
+                               (self.apiWrappable, self.notDeprecated, self.apiWrapped))
+
+    def doCmdsKeyTranslation(self, cmdName, pyNodeName, flag, cmdType,
+                             pyMethodName):
+        self._doKeyTranslation(cmdName, pyNodeName, (flag, cmdType),
+                               pyMethodName, self.apiToPyData,
+                               self.cmdsTranslationSources,
+                               self.cmdsOldToNewKey, self.cmdsNewToOldKey,
+                               (self.cmdWrapped,))
+
+    def _addKeyTranslation(self, oldKey, newKey, source, oldData, sources,
+                           oldToNew, newToOld):
+        data = oldData[oldKey]
+        otherOldKey = newToOld.get(newKey)
 
         if otherOldKey is not None:
             self.info("found two old keys - %s, %s - both mapping to same new key - %s" % (otherOldKey, oldKey, newKey))
-            otherData = self.newApiToPyData[newKey]
-            assert otherData == self.apiToPyData[otherOldKey]
-            if not self.apiMelDataEqual(data, otherData):
+            otherData = oldData[otherOldKey]
+            if not self.apiMelDataEqual(data, otherData, oldKey[1]):
                 print "data for old keys %s and %s did not match" % (otherOldKey, oldKey)
                 print "newKey   : %s" % (newKey,)
                 print "old key 1: %s" % (otherOldKey,)
                 print otherData
                 print "old key 2: %s" % (oldKey,)
                 print data
-                raise ApiMelTranlateNewKeyError('new key conflict')
+                raise WrapTranslateNewKeyError('new key conflict')
             else:
                 self.info("...but data matched, so it's ok")
-                self.duplicateOldKeys.add(oldKey)
         else:
             self.info("...adding data: oldKey: %s - newKey: %s - source: %s" % (oldKey, newKey, source))
-            self.oldToNewKey[oldKey] = newKey
-            self.newToOldKey[newKey] = oldKey
-            self.newApiToPyData[newKey] = data
-            self.translationSources[oldKey] = source
+            oldToNew[oldKey] = newKey
+            newToOld[newKey] = oldKey
+            sources[oldKey] = source
 
-    def doCmdMethodTranslation(self, pyNodeName, pyMethodName):
-        key = (pyNodeName, pyMethodName)
-        data = self.apiToPyData.get(key)
-        if data is not None:
-            self.newCmdsToPyData[key] = data
+    def translateData(self):
+        # translate the cmds first, because the way the overloads were done,
+        # it was actually possible for both an api AND cmd wrap sharing the
+        # same name to happen... but since the cmd wraps are made last, they
+        # would overwrite the api ones...
+        self.translateCmdData()
+        #self.translateApiData()
 
-    def apiMelDataEqual(self, data1, data2):
+    def translateCmdData(self):
+        for clsName, cls in factories.pyNodeNamesToPyNodes.iteritems():
+            melCmdName, infoCmd = cls.__metaclass__.getMelCmd(cls.__dict__)
+            try:
+                cmdInfo = factories.cmdlist[melCmdName]
+            except KeyError:
+                continue
+            for flag, flagInfo in cmdInfo['flags'].iteritems():
+                clsName = cls.__name__
+                for method, cmdType in cls.__metaclass__.flagToMethods(flag, flagInfo, infoCmd):
+                    shouldBeWrapped = self.flagShouldBeWrapped('new', clsName, flag, cmdType)
+                    wasWrapped = bool(factories.classToCmdMap.get(clsName, {}).get(method))
+                    shouldHaveBeenWrapped = self.flagShouldBeWrapped('old', clsName, flag, cmdType)
+                    #assert wasWrapped == shouldHaveBeenWrapped, "pyNode: %s - cmd: %s - flag: %s - cmdType: %s - wasWrapped: %s - shouldHaveBeenWrapped: %s" % (clsName, melCmdName, flag, cmdType, wasWrapped, shouldHaveBeenWrapped)
+                    if not shouldBeWrapped and wasWrapped:
+                        self.warn("enabled cmd method %s.%s" % (clsName, method))
+                        self.newCmdsToPyData.setdefault((clsName, flag, cmdType), {})['enabled'] = True
+                    elif shouldBeWrapped and not wasWrapped:
+                        self.warn("disabled cmd method %s.%s" % (clsName, method))
+                        self.newCmdsToPyData.setdefault((clsName, flag, cmdType), {})['enabled'] = False
+                # we don't need to bother with 'useName', because old code
+                # never bothered with it...
+
+    def flagShouldBeWrapped(self, oldNew, clsName, flag, cmdType):
+        self.debug("flagShouldBeWrapped(%r, %r, %r, %r)" % (oldNew, clsName, flag, cmdType))
+        cls = getattr(pm.nt, clsName)
+        melCmdName, infoCmd = cls.__metaclass__.getMelCmd(cls.__dict__)
+        try:
+            cmdInfo = factories.cmdlist[melCmdName]
+        except KeyError:
+            self.debug("False: no entry for %s in cmdlist" % melCmdName)
+            return False
+
+        filterAttrs = list(factories.filterCmdMethods)
+        filterAttrs += '__doc__ __melcmd__ __melcmdname__ __melcmd_isinfo__'.split()
+        # normally, parentClasses would be inspect.getmro(cls)[1:], because
+        # you don't want to include this class... but, in this case, we're
+        # checking if the flag should be wrapped, AFTER it may already have
+        # been wrapped... and including ourself in the parent classes will
+        # allow melMethodWrappable_* to check if the existing attribute is
+        # a melMethod...
+        parentClasses = [ x.__name__ for x in inspect.getmro(cls) ]
+        for parent in parentClasses:
+            filterAttrs += factories.overrideMethods.get(parent, [])
+
+        try:
+            flagInfo = cmdInfo['flags'][flag]
+        except KeyError:
+            self.debug("False: no entry for %s in flags" % flag)
+            return False
+
+        if flag in ['query', 'edit'] or 'modified' in flagInfo:
+            self.debug("False: flag was query or edit, or modified in flagInfo")
+            return False
+
+        method = None
+        for testName, testType in cls.__metaclass__.flagToMethods(flag, flagInfo, infoCmd):
+            if cmdType == testType:
+                method = testName
+                break
+
+        if method is None:
+            self.debug("False: no cmdType %s" % cmdType)
+            return False
+
+        if oldNew == 'old':
+#            # weird quirk of melMethodWrappable_old - since api methods are
+#            # constructed first, and creation of api methods calls
+#            # _getApiOverrideNameAndData, which can create "default" entries in
+#            # apiToPyData, and melMethodWrappable_old does a
+#            #    apiToPyData.has_key((classname, methodName))
+#            # check... the fact that api wraps are done first can change things
+#            # therefore, if we're not using factories.apiToPydata, we need
+#            # to account for this...
+#            apiToPyData = self.apiToPyData
+#            if self.apiToPyData != factories.apiToPyData:
+#                if (clsName, method) not in apiToPyData:
+#                    # check if there is an api wrap that would translate to the same
+#                    # name...
+#                    apicls = cls.__apicls__
+#                    apiName = apicls.__name__
+#                    clsInfo = factories.apiClassInfo[apiName]
+
+
+            self.debug("calling: melMethodWrappable_old(%r, %r, %r, %r, %r, apiToPyData=self.apiToPyData)" % (cls, method, cmdType, parentClasses, filterAttrs))
+            return factories._MetaMayaCommandWrapper.melMethodWrappable_old(cls,
+                                                                method,
+                                                                cmdType,
+                                                                parentClasses,
+                                                                filterAttrs,
+                                                                apiToPyData=self.apiToPyData)
+        elif oldNew == 'new':
+            self.debug("calling: melMethodWrappable_new(%r, %r, %r, parentClasses=%r, filterAttrs=%r, cmdsToPyData={})" % (cls, method, cmdType, parentClasses, filterAttrs))
+            return factories._MetaMayaCommandWrapper.melMethodWrappable_new(cls,
+                                                                method,
+                                                                cmdType,
+                                                                parentClasses=parentClasses,
+                                                                filterAttrs=filterAttrs,
+                                                                cmdsToPyData={})
+
+
+    @classmethod
+    def apiMelDataEqual(cls, data1, data2, pyMethodName):
         if data1 == data2:
             return True
         data1 = dict(data1)
         data2 = dict(data2)
         for data in data1, data2:
-            # don't do overloadIndex, as it's 'defaul't is tricky - before
+            # don't do overloadIndex, as it's 'default' is tricky - before
             # pymelControlPanel is run, it's default is None... once
             # pymelControl panel is run, it's set to the first wrappable
             # overload it finds (or None if none are found), so that could be
             # considered it's default as well...
             data.setdefault('useName', 'API')
-            data.setdefault('enabled', True)
+            data.setdefault('enabled',
+                            pyMethodName not in factories.EXCLUDE_METHODS)
         return data1 == data2
 
-    def wrappable(self, apiClassName, apiMethodName):
+    def apiWrappable(self, apiClassName, apiMethodName):
         for i in xrange(len(self.apiClassInfo[apiClassName]['methods'][apiMethodName])):
             argHelper = factories.ApiArgUtil(apiClassName, apiMethodName, i)
             if argHelper.canBeWrapped():
@@ -1062,14 +1227,22 @@ class ApiMelDataKeyTranslator(object):
                 return False
         return True
 
-    def wrapped(self, apiClassName, apiMethodName):
+    def apiWrapped(self, apiClassName, apiMethodName):
         if not hasattr(factories, '_wrappedApiMethods'):
             return None
         return (apiClassName, apiMethodName) in factories._wrappedApiMethods
 
-    def preferred(self, cls1, meth1, cls2, meth2):
+    def cmdWrapped(self, cmdName, flagAndCmdType):
+        # classToCmdMap is a defaultdict, so don't just jump straight to
+        # .get()
+        if not hasattr(factories.classToCmdMap, cmdName):
+            return False
+        key = (cmdName,) + flagAndCmdType
+        return key in factories.classToCmdMap[cmdName].itervalues()
+
+    def preferred(self, cls1, meth1, cls2, meth2, deciders):
         better = None
-        for decider in (self.wrappable, self.notDeprecated, self.wrapped):
+        for decider in deciders:
             good1 = decider(cls1, meth1)
             good2 = decider(cls2, meth2)
             if good1 != good2:
@@ -1083,5 +1256,5 @@ class ApiMelDataKeyTranslator(object):
     def writeTranslatedCache(self):
         cacheObj= apicache.ApiMelBridgeCache()
         oldCache = cacheObj.read()
-        newCache = (self.newApiMelData, self.newCmdsWrapData, oldCache[1])
+        newCache = (self.newApiToPyData, self.newCmdsToPyData, oldCache[1])
         cacheObj.write(newCache)

@@ -179,6 +179,8 @@ nodeTypeToNodeCommand = {
     'nurbsSurface'      : 'surface',
     'annotationShape'   : 'annotate',
     'condition'         : None, # prevent Condition node from using cmds.condition (which is for script conditions)
+    # TODO: enable radialField sometime when not in bugfix-only mode...
+    #'radialField'       : 'radial',
 }
 
 

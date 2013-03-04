@@ -47,6 +47,7 @@ mayaTypesToApiEnums = None
 
 # ApiMelBridgeCache
 apiToPyData  = None
+cmdsToPyData = None
 apiClassOverrides = None
 
 # CmdCache
@@ -210,6 +211,36 @@ nodeTypeToInfoCommand = {
     #'mesh' : 'polyEvaluate',
     'transform' : 'xform'
 }
+
+# stores a dictionary of pymel classnames to a dict from PyNode method names
+# to (cmdName, cmdFlagName, cmdType) triplets
+# ie:
+#    classToCmdMap['Camera']['getFarClipPlane'] = ('camera', 'farClipPlane', 'get')
+classToCmdMap = util.defaultdict(dict)
+
+# Stores information about which objects on a given pynode are wraps. Used
+# when building wraps (ie, to see if a given method has already been wrapped
+# by a parent class)
+classToApiMap = {}
+
+_DEBUG_API_WRAPS = False
+
+if _DEBUG_API_WRAPS:
+    # Provides information on which api-method-overloads were actually wrapped,
+    # at some point; useful for comparing information between different versions
+    # of pymel, different caches, etc - ie, to see if there has been a change
+    # in the api caches that will make a difference / cause a regression
+    #
+    # Only needed for manual comparisons, so not supplied unless
+    # DEBUG_API_WRAPS is on
+    _wrappedApiMethods = {}
+
+#: overrideMethods specifies methods of base classes which should not be overridden by sub-classes
+overrideMethods = {}
+overrideMethods['Constraint'] = ('getWeight', 'setWeight')
+
+# methods for which mel cmd wraps should not be made
+filterCmdMethods = ('name', 'getName', 'setName')
 
 def toPyNode(res):
     "returns a PyNode object"
@@ -428,9 +459,6 @@ if includeDocExamples:
 
 #cmdlist, nodeHierarchy, uiClassList, nodeCommandList, moduleCmds = cmdcache.buildCachedData()
 
-# FIXME
-#: stores a dictionary of pymel classnames to mel method names
-classToMelMap = util.defaultdict(list)
 
 # TODO: at some point, would like to make the key use the apiMethodName, since
 # that makes more sense...
@@ -1220,13 +1248,6 @@ def createFunctions( moduleName, returnFunc=None ):
             func.__module__ = moduleName
             setattr( module, funcName, func )
 
-
-#: overrideMethods specifies methods of base classes which should not be overridden by sub-classes
-overrideMethods = {}
-overrideMethods['Constraint'] = ('getWeight', 'setWeight')
-
-# methods for which mel cmd wraps should not be made
-filterCmdMethods = ['name', 'getName', 'setName']
 
 class ApiTypeRegister(object):
     """"
@@ -2028,22 +2049,6 @@ class ApiRedoUndoItem(ApiUndoItem):
     def undoIt(self):
         self._undoer(*self._undo_args, **self._undo_kwargs)
 
-_DEBUG_API_WRAPS = False
-
-# Stores information about which objects on a given pynode are wraps. Used
-# when building wraps (ie, to see if a given method has already been wrapped
-# by a parent class)
-_pyNodeApiWraps = {}
-
-if _DEBUG_API_WRAPS:
-    # Provides information on which api-method-overloads were actually wrapped,
-    # at some point; useful for comparing information between different versions
-    # of pymel, different caches, etc - ie, to see if there has been a change
-    # in the api caches that will make a difference / cause a regression
-    #
-    # Only needed for manual comparisons, so not supplied unless
-    # DEBUG_API_WRAPS is on
-    _wrappedApiMethods = {}
 
 def wrapApiMethod( apiClass, methodName, newName=None, proxy=True, overloadIndex=None ):
     """
@@ -2686,7 +2691,7 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
     def _registerApiWrapInfo(metacls, newcls):
         '''Add information on wrapped methods into global cache
         '''
-        global _pyNodeApiWraps
+        global classToApiMap
         # The information for most methods could be added from within
         # _wrapApiMethods... but we want to catch MANUAL wraps as well - ie,
         #
@@ -2699,8 +2704,7 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
             wrapInfo = _apiMethodWrapInfo(obj)
             if not wrapInfo:
                 continue
-            _pyNodeApiWraps.setdefault(className, {})[name] = wrapInfo
-
+            classToApiMap.setdefault(className, {})[name] = wrapInfo
 
 class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
     """
@@ -2740,36 +2744,26 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
             classdict['__melcmdname__'] = melCmdName
             classdict['__melcmd_isinfo__'] = infoCmd
 
-            filterAttrs = filterCmdMethods + classdict.keys()
+            filterAttrs = list(filterCmdMethods)
             parentClasses = [ x.__name__ for x in inspect.getmro( newcls )[1:] ]
             for parent in parentClasses:
                 filterAttrs += overrideMethods.get(parent, [])
 
-            parentClasses = [ x.__name__ for x in inspect.getmro( newcls )[1:] ]
             for flag, flagInfo in cmdInfo['flags'].items():
                 # don't create methods for query or edit, or for flags which only serve to modify other flags
                 if flag in ['query', 'edit'] or 'modified' in flagInfo:
                     continue
 
-
                 if flagInfo.has_key('modes'):
-                    # flags which are not in maya docs will have not have a modes list unless they
-                    # have passed through testNodeCmds
-                    #continue
-                    modes = flagInfo['modes']
-
-                    # query command
-                    if 'query' in modes:
-                        methodName = 'get' + util.capitalize(flag)
-                        if cls.melMethodWrappable(newcls, methodName, parentClasses, filterAttrs):
-
-                                classToMelMap[classname].append( methodName )
+                    for methodName, methodType in cls.flagToMethods(flag, flagInfo, infoCmd):
+                        if cls.melMethodWrappable_old(newcls, methodName, methodType, parentClasses, filterAttrs):
+                            if methodType == 'get':
                                 returnFunc = None
 
-                                if flagInfo.get( 'resultNeedsCasting', False):
+                                if flagInfo.get('resultNeedsCasting', False):
                                     returnFunc = flagInfo['args']
 
-                                if flagInfo.get( 'resultNeedsUnpacking', False):
+                                if flagInfo.get('resultNeedsUnpacking', False):
                                     if returnFunc:
                                         # can't do:
                                         #   returnFunc = lambda x: returnFunc(x[0])
@@ -2779,36 +2773,54 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
                                     else:
                                         returnFunc = lambda x: x[0]
 
-                                wrappedMelFunc = makeQueryFlagMethod( func, flag, methodName,
-                                     returnFunc=returnFunc )
-
-                                #_logger.debug("Adding mel derived method %s.%s()" % (classname, methodName))
-                                classdict[methodName] = wrappedMelFunc
-                            #else: #_logger.debug(("skipping mel derived method %s.%s(): manually disabled or overridden by API" % (classname, methodName)))
-                        #else: #_logger.debug(("skipping mel derived method %s.%s(): already exists" % (classname, methodName)))
-                    # edit command:
-                    if 'edit' in modes or ( infoCmd and 'create' in modes ):
-                        # if there is a corresponding query we use the 'set' prefix.
-                        if 'query' in modes:
-                            methodName = 'set' + util.capitalize(flag)
-                        #if there is not a matching 'set' and 'get' pair, we use the flag name as the method name
-                        else:
-                            methodName = flag
-                        if cls.melMethodWrappable(newcls, methodName, parentClasses, filterAttrs):
-                                classToMelMap[classname].append( methodName )
+                                wrappedMelFunc = makeQueryFlagMethod(func, flag,
+                                                                     methodName,
+                                                                     returnFunc=returnFunc)
+                            else:
                                 #FIXME: shouldn't we be able to use the wrapped pymel command, which is already fixed?
                                 fixedFunc = fixCallbacks( func, melCmdName )
-
-                                wrappedMelFunc = makeEditFlagMethod( fixedFunc, flag, methodName)
-                                #_logger.debug("Adding mel derived method %s.%s()" % (classname, methodName))
-                                classdict[methodName] = wrappedMelFunc
-                            #else: #_logger.debug(("skipping mel derived method %s.%s(): manually disabled" % (classname, methodName)))
-                        #else: #_logger.debug(("skipping mel derived method %s.%s(): already exists" % (classname, methodName)))
+                                wrappedMelFunc = makeEditFlagMethod(fixedFunc,
+                                                                    flag,
+                                                                    methodName)
+                            classToCmdMap[classname][methodName] = (melCmdName, flag, methodType)
+                            #_logger.debug("Adding mel derived method %s.%s()" % (classname, methodName))
+                            classdict[methodName] = wrappedMelFunc
 
         for name, attr in classdict.iteritems() :
             type.__setattr__(newcls, name, attr)
 
         return newcls
+
+    @classmethod
+    def flagToMethods(cls, flag, flagInfo, infoCmd):
+        try:
+            modes = flagInfo['modes']
+        except KeyError:
+            # flags which are not in maya docs will have not have a modes list unless they
+            # have passed through testNodeCmds
+            return []
+
+        cmdTypes = []
+        if 'query' in modes:
+            cmdTypes.append('get')
+        if 'edit' in modes or ( infoCmd and 'create' in modes ):
+            if 'query' in modes:
+                cmdTypes.append('set')
+            else:
+                cmdTypes.append('other')
+        return [(cls.flagToMethodName(flag, cmdType), cmdType)
+                for cmdType in cmdTypes]
+
+    @classmethod
+    def flagToMethodName(cls, flag, cmdType):
+        if cmdType == 'get':
+            return 'get' + util.capitalize(flag)
+        elif cmdType == 'set':
+            return 'set' + util.capitalize(flag)
+        elif cmdType == 'other':
+            return flag
+        else:
+            raise ValueError(cmdType)
 
     @classmethod
     def getMelCmd(cls, classdict):
@@ -2825,12 +2837,16 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
         Deteremine if the passed method name exists on a parent class as a mel method
         """
         for classname in parentClassList:
-            if methodName in classToMelMap[classname]:
+            if methodName in classToCmdMap[classname]:
                 return True
         return False
 
     @classmethod
-    def melMethodWrappable(cls, newcls, methodName, parentClasses, filterAttrs):
+    def melMethodWrappable_old(cls, newcls, methodName, methodType,
+                               parentClasses, filterAttrs, apiToPyData=None):
+        if apiToPyData is None:
+            apiToPyData = globals()['apiToPyData']
+
         if (methodName not in filterAttrs and
                 # don't want to override an existing
                 # attribute...
@@ -2847,7 +2863,42 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
                     or apiToPyData[(classname,methodName)].get('melEnabled',False)
                     or not apiToPyData[(classname, methodName)].get('enabled',True)):
                 return True
+            #else: #_logger.debug(("skipping mel derived method %s.%s(): manually disabled" % (classname, methodName)))
+        #else: #_logger.debug(("skipping mel derived method %s.%s(): already exists" % (classname, methodName)))
         return False
+
+    @classmethod
+    def melMethodWrappable_new(cls, newcls, methodName, methodType,
+                               parentClasses=None, filterAttrs=None,
+                               cmdsToPyData=None):
+        if parentClasses is None:
+            parentClasses = [ x.__name__ for x in inspect.getmro( newcls )[1:] ]
+        if filterAttrs is None:
+            filterAttrs = list(filterCmdMethods)
+            for parent in parentClasses:
+                filterAttrs += overrideMethods.get(parent, [])
+        wrapData = cmdsToPyData.get((newcls.__name__, methodName, methodType))
+        # if melEnabled is explicitly specified, that overrides other
+        # considerations
+        if wrapData is not None:
+            melEnabled = wrapData.get('enabled')
+            if melEnabled is not None:
+                return melEnabled
+
+        # otherwise, go by filterAttrs / hierarchy / etc
+        if methodName in filterAttrs:
+            return False
+
+        # don't want to override an existing attribute...
+        if (hasattr(newcls, methodName)
+                # UNLESS it's also another mel method... (ie,
+                # OptionMenuGrp.setWidth should replace RowLayout's setWidth)
+                and not cls.isMelMethod(methodName, parentClasses)):
+            return False
+
+        # if we can't come up with a good reason not to use it, go for it!
+        return True
+
 
     @classmethod
     def docstring(cls, melCmdName):
