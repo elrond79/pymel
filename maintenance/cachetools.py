@@ -714,8 +714,17 @@ class WrapTranslateError(Exception): pass
 class WrapTranslateNewKeyError(WrapTranslateError): pass
 class WrapTranslateOldKeyError(WrapTranslateError): pass
 
-# old possible parameters in apiToMelData, for each cls/method:
-#
+# old possible parameters in apiToMelData:
+# ========================================
+# keys:
+# -----
+# clsName - the name of the PyNode class we will be putting the methods on
+# pyMethodName - the "intermediate" name of the method, shared for both cmds
+#     and api wraps; for api, it is the value stored in the 'pymelName' field
+#     in apiClassInfo (else the api method name); for cmds, it is the
+#     converted flag name (ie, the flag with 'get' or 'set' possibly in front)
+# data:
+# -----
 # enabled - whether the api wrap was enabled (but also had an inverse enabling
 #     of the cmds wrap - ie, if 'melEnabled' is True OR 'enabled' is
 #     False, the cmd wrap will be done... meaning there was no
@@ -734,9 +743,17 @@ class WrapTranslateOldKeyError(WrapTranslateError): pass
 # useName - controls what pymel name to map this method to - if API, it uses
 #     the value stored in the 'pymelName' from apiClassInfo; if MEL, it uses the
 #     value in melName; otherwise, it is a custom name that is used directly
-
-# new parameters for apiToPyData
 #
+###############################################################################
+# new parameters for apiToPyData
+# ==============================
+# keys:
+# -----
+# clsName - the name of the PyNode class we will be putting the methods on
+# apiMethodName - the un-modified name of the api method we will be wrapping
+#
+# data:
+# -----
 # enabled - whether this api method wrap should be applied for this PyNode; if
 #     True, a new wrap will always be done for the node (even if an
 #     ancestor PyNode already wrapped it); if False, it will not be
@@ -751,10 +768,18 @@ class WrapTranslateOldKeyError(WrapTranslateError): pass
 # useName - controls what pymel name to map this method to - if None, it uses
 #     the value stored in the 'pymelName' from apiClassInfo; otherwise, it
 #     is a custom name that is used directly; defaults to None
-#
-# new parameters for cmdsToPyData - keys are (cmdName, flagName, cmdType) -
-#     ie, ('camera', 'farClipPlane', 'set')
-#
+# notes - list of notes on why changes were made, etc; informational only
+
+# new parameters for cmdsToPyData
+# ===============================
+# keys:
+# -----
+# clsName - the name of the PyNode class we will be putting the methods on
+# flagName - the un-modified name of the mel cmd flag we will be wrapping
+# cmdType - what "sort" of wrap of the flag this is - ie, "get", "set", or
+#    "other"
+# data:
+# -----
 # enabled - whether this cmd flag wrap should be applied for this PyNode;
 #     if set to True/False, then the method is wrapped; if None, then it is
 #     wrapped if the name is not present on the class, or if it is, but it was
@@ -762,6 +787,7 @@ class WrapTranslateOldKeyError(WrapTranslateError): pass
 # useName - controls what pymel name to map this method to - if None, it uses
 #     the default name, generated from _MetaMayaCommandWrapper.flagToMethodName;
 #     otherwise, it is a custom name that is used directly; defaults to None
+# notes - list of notes on why changes were made, etc; informational only
 #
 # Additonally, there is a new TwoWayDict apiCmdsEquivalents which stores
 # information about equivalent cmd/api wraps; it has no functional effect on
@@ -984,17 +1010,17 @@ class WrapDataTranslator(object):
                 pass
 
 
-    def _doKeyTranslation(self, rootName, pyNodeName, subName, pyMethodName,
+    def _doKeyTranslation(self, rootName, pyClsName, subName, pyMethodName,
                           oldData, sources, oldToNew, newToOld, deciders):
         # rootName is either the api class name, or the mel cmd name
         # subName is either the api method name, or the mel flag name
-        oldKey = (pyNodeName, pyMethodName)
+        oldKey = (pyClsName, pyMethodName)
         if isinstance(subName, tuple):
-            newKey = (pyNodeName,) + subName
+            newKey = (pyClsName,) + subName
         else:
-            newKey = (pyNodeName, subName)
+            newKey = (pyClsName, subName)
 
-        if pyNodeName in self.TO_DELETE_CLASSES or oldKey in self.TO_DELETE_METHODS:
+        if pyClsName in self.TO_DELETE_CLASSES or oldKey in self.TO_DELETE_METHODS:
             self.deleted.add(oldKey)
             return
 
@@ -1110,13 +1136,20 @@ class WrapDataTranslator(object):
                     shouldHaveBeenWrapped = self.flagShouldBeWrapped('old', clsName, flag, cmdType)
                     #assert wasWrapped == shouldHaveBeenWrapped, "pyNode: %s - cmd: %s - flag: %s - cmdType: %s - wasWrapped: %s - shouldHaveBeenWrapped: %s" % (clsName, melCmdName, flag, cmdType, wasWrapped, shouldHaveBeenWrapped)
                     if not shouldBeWrapped and wasWrapped:
-                        self.warn("enabled cmd method %s.%s" % (clsName, method))
+                        data = self.newCmdsToPyData.setdefault((clsName, flag, cmdType), {})
+                        if not self.apiToPyData.get((clsName, method), {}).get('melEnabled', False):
+                            self.warn("enabled cmd method %s.%s" % (clsName, method))
+                            data.setdefault('notes', []).append("enabled in auto-conversion from old apiToMelData")
+                        data['enabled'] = True
                         self.newCmdsToPyData.setdefault((clsName, flag, cmdType), {})['enabled'] = True
                     elif shouldBeWrapped and not wasWrapped:
-                        self.warn("disabled cmd method %s.%s" % (clsName, method))
-                        self.newCmdsToPyData.setdefault((clsName, flag, cmdType), {})['enabled'] = False
+                        data = self.newCmdsToPyData.setdefault((clsName, flag, cmdType), {})
+                        if self.apiToPyData.get((clsName, method), {}).get('melEnabled', True):
+                            self.warn("disabled cmd method %s.%s" % (clsName, method))
+                            data.setdefault('notes', []).append("disabled in auto-conversion from old apiToMelData")
+                        data['enabled'] = False
                 # we don't need to bother with 'useName', because old code
-                # never bothered with it...
+                # never bothered with it for mel cmds...
 
     def flagShouldBeWrapped(self, oldNew, clsName, flag, cmdType):
         self.debug("flagShouldBeWrapped(%r, %r, %r, %r)" % (oldNew, clsName, flag, cmdType))
