@@ -1576,8 +1576,8 @@ class ApiArgUtil(object):
                     else:
                         # in+out, or something else weird...
                         return False
-        except AssertionError:
-            #_logger.debug( str(msg) )
+        except AssertionError:#, e:
+#            _logger.debug( str(e) )
             return False
 
         #_logger.debug("%s: valid" % self.getPrototype())
@@ -2496,6 +2496,7 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
                         return super(newcls, self).__getattribute__(name)
 
                     classdict['__getattribute__'] = __getattribute__
+                    classdict['_maskedAttrs'] = removeAttrs
                 if metacls._hasApiSetAttrBug(apicls):
                     # correct the setAttr bug by wrapping the api's
                     # __setattr__ to handle data descriptors...
@@ -2647,7 +2648,7 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
 
         ##_logger.debug("Methods info: %(methods)s" % classInfo)
         # Class Methods
-        for methodName, info in classInfo['methods'].iteritems():
+        for methodName in classInfo['methods']:
             # don't rewrap if already herited from a base class that is not the apicls
             #_logger.debug("Checking method %s" % (methodName))
             pymelName, data = _getApiOverrideNameAndData(apicls.__name__,
