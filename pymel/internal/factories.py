@@ -2630,7 +2630,7 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         # (see http://code.activestate.com/recipes/578305-find-what-class-an-attribute-ie-myobjmyattr-comes-/)
         # but that would probably be too slow to run from within __getattribute__,
         # which is called for EVERY attribute access...
-        removeAttrs = []
+        removeAttrs = set()
 
         #------------------------
         # API Wrap
@@ -2653,6 +2653,8 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
             #_logger.debug("Checking method %s" % (methodName))
             pymelName, data = _getApiOverrideNameAndData(apicls.__name__,
                                                          classname, methodName)
+            if not proxy and pymelName != methodName:
+                removeAttrs.add(methodName)
 
             overloadIndex = data.get( 'overloadIndex', None )
 
@@ -2684,7 +2686,6 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         if proxy:
             removeAttrs = set()
         else:
-            removeAttrs = set(removeAttrs)
             removeAttrs.difference_update(EXCLUDE_METHODS) # tmp fix
         return removeAttrs
 
