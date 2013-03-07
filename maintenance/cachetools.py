@@ -1037,7 +1037,7 @@ class WrapDataTranslator(object):
 
             oldRoot, oldSub = sources[oldKey]
 
-            better = self.preferred(oldRoot, oldSub, rootName, subName, deciders)
+            better = self.preferred(pyClsName, oldRoot, oldSub, rootName, subName, deciders)
             if better is not None:
                 # if one pick is clearly better, it doesn't matter if the newKey
                 # has changed or not - update to use the better option
@@ -1246,38 +1246,38 @@ class WrapDataTranslator(object):
                             pyMethodName not in factories.EXCLUDE_METHODS)
         return data1 == data2
 
-    def apiWrappable(self, apiClassName, apiMethodName):
+    def apiWrappable(self, pyClsName, apiClassName, apiMethodName):
         for i in xrange(len(self.apiClassInfo[apiClassName]['methods'][apiMethodName])):
             argHelper = factories.ApiArgUtil(apiClassName, apiMethodName, i)
             if argHelper.canBeWrapped():
                 return True
         return False
 
-    def notDeprecated(self, apiClassName, apiMethodName):
+    def notDeprecated(self, pyClsName, apiClassName, apiMethodName):
         for i, overloadInfo in enumerate(self.apiClassInfo[apiClassName]['methods'][apiMethodName]):
             argHelper = factories.ApiArgUtil(apiClassName, apiMethodName, i)
             if argHelper.canBeWrapped() and not overloadInfo.get('deprecated', False):
                 return False
         return True
 
-    def apiWrapped(self, apiClassName, apiMethodName):
+    def apiWrapped(self, pyClsName, apiClassName, apiMethodName):
         if not hasattr(factories, '_wrappedApiMethods'):
             return None
         return (apiClassName, apiMethodName) in factories._wrappedApiMethods
 
-    def cmdWrapped(self, cmdName, flagAndCmdType):
+    def cmdWrapped(self, pyClsName, cmdName, flagAndCmdType):
         # classToCmdMap is a defaultdict, so don't just jump straight to
         # .get()
-        if not hasattr(factories.classToCmdMap, cmdName):
+        if not hasattr(factories.classToCmdMap, pyClsName):
             return False
         key = (cmdName,) + flagAndCmdType
-        return key in factories.classToCmdMap[cmdName].itervalues()
+        return key in factories.classToCmdMap[pyClsName].itervalues()
 
-    def preferred(self, cls1, meth1, cls2, meth2, deciders):
+    def preferred(self, pyClsName, root1, sub1, root2, sub2, deciders):
         better = None
         for decider in deciders:
-            good1 = decider(cls1, meth1)
-            good2 = decider(cls2, meth2)
+            good1 = decider(pyClsName, root1, sub1)
+            good2 = decider(pyClsName, root2, sub2)
             if good1 != good2:
                 if good1:
                     better = 1
