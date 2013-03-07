@@ -159,7 +159,8 @@ class PymelControlPanel(object):
         """get all mel-derived methods for this class"""
         reg = re.compile('(.*[a-z])([XYZ])$')
         newlist = []
-        for method in factories.classToCmdMap[className]:
+        cls = factories.pyNodeNamesToPyNodes.get(className)
+        for method in factories.classToCmdMap.get(cls, {}):
             m = reg.search(method)
             if m:
                 # strip off the XYZ component and replace with *

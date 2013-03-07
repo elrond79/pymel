@@ -892,12 +892,13 @@ class WrapDataTranslator(object):
         #for pyNode in [pm.nt.AnimBlendNodeAdditiveI16]:
         for mayaType, apiEnumName in factories.mayaTypesToApiTypes.iteritems():
             pyNodeName = pm.util.capitalize(mayaType)
+            pyNode = factories.pyNodeNamesToPyNodes[pyNodeName]
             apiCls = factories.apiTypesToApiClasses[apiEnumName]
             apiClsName = apiCls.__name__
             self.doApiHierKeyTranslation(apiClsName, pyNodeName)
             #self.doApiClsKeyTranslation(apiClsName, pyNodeName)
 
-            pyMethods = factories.classToCmdMap.get(pyNodeName)
+            pyMethods = factories.classToCmdMap.get(pyNode)
             if pyMethods is not None:
                 for pyMethod, (cmd, flag, cmdType) in pyMethods.iteritems():
                     self.doCmdsKeyTranslation(cmd, pyNodeName, flag, cmdType,
@@ -1132,7 +1133,7 @@ class WrapDataTranslator(object):
                 clsName = cls.__name__
                 for method, cmdType in cls.__metaclass__.flagToMethods(flag, flagInfo, infoCmd):
                     shouldBeWrapped = self.flagShouldBeWrapped('new', clsName, flag, cmdType)
-                    wasWrapped = bool(factories.classToCmdMap.get(clsName, {}).get(method))
+                    wasWrapped = bool(factories.classToCmdMap.get(cls, {}).get(method))
                     shouldHaveBeenWrapped = self.flagShouldBeWrapped('old', clsName, flag, cmdType)
                     #assert wasWrapped == shouldHaveBeenWrapped, "pyNode: %s - cmd: %s - flag: %s - cmdType: %s - wasWrapped: %s - shouldHaveBeenWrapped: %s" % (clsName, melCmdName, flag, cmdType, wasWrapped, shouldHaveBeenWrapped)
                     if not shouldBeWrapped and wasWrapped:
@@ -1169,9 +1170,9 @@ class WrapDataTranslator(object):
         # been wrapped... and including ourself in the parent classes will
         # allow melMethodWrappable_* to check if the existing attribute is
         # a melMethod...
-        parentClasses = [ x.__name__ for x in inspect.getmro(cls) ]
+        parentClasses = inspect.getmro(cls)
         for parent in parentClasses:
-            filterAttrs += factories.overrideMethods.get(parent, [])
+            filterAttrs += factories.overrideMethods.get(parent.__name__, [])
 
         try:
             flagInfo = cmdInfo['flags'][flag]
@@ -1266,12 +1267,12 @@ class WrapDataTranslator(object):
         return (apiClassName, apiMethodName) in factories._wrappedApiMethods
 
     def cmdWrapped(self, pyClsName, cmdName, flagAndCmdType):
-        # classToCmdMap is a defaultdict, so don't just jump straight to
-        # .get()
-        if not hasattr(factories.classToCmdMap, pyClsName):
+        cls = factories.pyNodeNamesToPyNodes[pyClsName]
+        data = factories.classToCmdMap.get(cls)
+        if data is None:
             return False
         key = (cmdName,) + flagAndCmdType
-        return key in factories.classToCmdMap[pyClsName].itervalues()
+        return key in data.itervalues()
 
     def preferred(self, pyClsName, root1, sub1, root2, sub2, deciders):
         better = None

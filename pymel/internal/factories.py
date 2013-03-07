@@ -189,7 +189,7 @@ EXCLUDE_METHODS = ['type', 'className', 'create' ]
 # examples are usually only included when creating documentation, otherwise it's too much info
 includeDocExamples = bool( os.environ.get( 'PYMEL_INCLUDE_EXAMPLES', False ) )
 
-#Lookup from PyNode type name as a string to PyNode type as a class
+# Lookup from PyNode type name as a string to PyNode type as a class
 pyNodeNamesToPyNodes = {}
 
 #Lookup from MFn to PyNode name
@@ -212,15 +212,15 @@ nodeTypeToInfoCommand = {
     'transform' : 'xform'
 }
 
-# stores a dictionary of pymel classnames to a dict from PyNode method names
-# to (cmdName, cmdFlagName, cmdType) triplets
+# stores a dictionary of pymel classes to a dict from PyNode method names to
+# (cmdName, cmdFlagName, cmdType) triplets
 # ie:
-#    classToCmdMap['Camera']['getFarClipPlane'] = ('camera', 'farClipPlane', 'get')
+#    classToCmdMap[pm.nt.Camera]['getFarClipPlane'] = ('camera', 'farClipPlane', 'get')
 classToCmdMap = util.defaultdict(dict)
 
-# Stores information about which objects on a given pynode are wraps. Used
-# when building wraps (ie, to see if a given method has already been wrapped
-# by a parent class)
+# Stores information about which objects on a given MetaMayaTypeWrapper-class
+# are wraps. Used when building wraps (ie, to see if a given method has already
+# been wrapped by a parent class)
 classToApiMap = {}
 
 _DEBUG_API_WRAPS = False
@@ -2701,12 +2701,11 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         #     isReadOnly = _factories.wrapApiMethod( _api.MFnDependencyNode, 'isFromReferencedFile', 'isReadOnly' )
         #
         # ...so we just iterate over all objects in the classdict...
-        className = newcls.__name__
         for name, obj in newcls.__dict__.iteritems():
             wrapInfo = _apiMethodWrapInfo(obj)
             if not wrapInfo:
                 continue
-            classToApiMap.setdefault(className, {})[name] = wrapInfo
+            classToApiMap.setdefault(newcls, {})[name] = wrapInfo
 
 class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
     """
@@ -2747,9 +2746,9 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
             classdict['__melcmd_isinfo__'] = infoCmd
 
             filterAttrs = list(filterCmdMethods)
-            parentClasses = [ x.__name__ for x in inspect.getmro( newcls )[1:] ]
+            parentClasses = inspect.getmro( newcls )[1:]
             for parent in parentClasses:
-                filterAttrs += overrideMethods.get(parent, [])
+                filterAttrs += overrideMethods.get(parent.__name__, [])
 
             for flag, flagInfo in cmdInfo['flags'].items():
                 # don't create methods for query or edit, or for flags which only serve to modify other flags
@@ -2784,7 +2783,7 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
                                 wrappedMelFunc = makeEditFlagMethod(fixedFunc,
                                                                     flag,
                                                                     methodName)
-                            classToCmdMap[classname][methodName] = (melCmdName, flag, methodType)
+                            classToCmdMap.setdefault(newcls, {})[methodName] = (melCmdName, flag, methodType)
                             #_logger.debug("Adding mel derived method %s.%s()" % (classname, methodName))
                             classdict[methodName] = wrappedMelFunc
 
@@ -2838,8 +2837,8 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
         """
         Deteremine if the passed method name exists on a parent class as a mel method
         """
-        for classname in parentClassList:
-            if methodName in classToCmdMap[classname]:
+        for cls in parentClassList:
+            if methodName in classToCmdMap.get(cls, {}):
                 return True
         return False
 
@@ -2874,7 +2873,7 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
                                parentClasses=None, filterAttrs=None,
                                cmdsToPyData=None):
         if parentClasses is None:
-            parentClasses = [ x.__name__ for x in inspect.getmro( newcls )[1:] ]
+            parentClasses = inspect.getmro(newcls)[1:]
         if filterAttrs is None:
             filterAttrs = list(filterCmdMethods)
             for parent in parentClasses:
