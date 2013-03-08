@@ -1115,12 +1115,18 @@ class WrapDataTranslator(object):
             sources[oldKey] = source
 
     def translateData(self):
-        # translate the cmds first, because the way the overloads were done,
-        # it was actually possible for both an api AND cmd wrap sharing the
-        # same name to happen... but since the cmd wraps are made last, they
-        # would overwrite the api ones...
+        self.translateApiData()
         self.translateCmdData()
-        #self.translateApiData()
+
+    def translateApiData(self):
+        for clsName, cls in factories.pyNodeNamesToPyNodes.iteritems():
+            apiCls = cls.__apicls__
+            apiClsName = apiCls.__name__
+            clsData = self.apiClassInfo[apiClsName]
+            for apiMethodName, overloads in clsData['methods'].iteritems():
+                for overloadIndex, methodData in enumerate(overloads):
+                    pass
+
 
     def translateCmdData(self):
         for clsName, cls in factories.pyNodeNamesToPyNodes.iteritems():
