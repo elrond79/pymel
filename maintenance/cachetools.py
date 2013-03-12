@@ -778,6 +778,7 @@ class WrapTranslateOldKeyError(WrapTranslateError): pass
 # flagName - the un-modified name of the mel cmd flag we will be wrapping
 # cmdType - what "sort" of wrap of the flag this is - ie, "get", "set", or
 #    "other"
+#
 # data:
 # -----
 # enabled - whether this cmd flag wrap should be applied for this PyNode;

@@ -514,6 +514,11 @@ def _getApiOverrideNameAndData(apiClassName, pyClassName, apiMethodName):
     #overloadIndex = data.get( 'overloadIndex', None )
     return pyMethodName, data
 
+# only for use with "new" apiToPyData and cmdsToPyData format
+def _getTrickleUpData(pyClassName,
+
+# only with with "new" apiToPyData format
+def _getApiOverrideData(pyClassName,
 
 def getUncachedCmds():
     return list( set( map( itemgetter(0), inspect.getmembers( cmds, callable ) ) ).difference( cmdlist.keys() ) )
@@ -2614,6 +2619,10 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         return bool(foo2.bar != 7)
 
     @classmethod
+    def _needsWrapping(metacls, classname, bases, apicls):
+
+
+    @classmethod
     def _wrapApiMethods(metacls, classname, bases, classdict, apicls, proxy,
                         classInfo):
         # If not a proxy, we will need to "remove"/hide the original api methods
@@ -2631,6 +2640,10 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         # but that would probably be too slow to run from within __getattribute__,
         # which is called for EVERY attribute access...
         removeAttrs = set()
+
+        # First, decide if we need to do ANY wrapping...
+        if metacls.
+
 
         #------------------------
         # API Wrap
