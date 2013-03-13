@@ -362,7 +362,7 @@ class MethodRow(object):
         self.apiClassName = apiClassName
         self.apiMethodName = apiMethodName
         self.methodInfoList = methodInfoList
-        self.data = factories._getApiOverrideNameAndData(self.apiClassName,
+        self.data = factories._getApiOverrideNameAndData_old(self.apiClassName,
                                                          self.className,
                                                          self.apiMethodName)[1]
         self.classInfo = factories.apiClassInfo[self.apiClassName]['methods'][self.apiMethodName]

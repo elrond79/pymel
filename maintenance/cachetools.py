@@ -768,7 +768,8 @@ class WrapTranslateOldKeyError(WrapTranslateError): pass
 # useName - controls what pymel name to map this method to - if None, it uses
 #     the value stored in the 'pymelName' from apiClassInfo; otherwise, it
 #     is a custom name that is used directly; defaults to None
-# notes - list of notes on why changes were made, etc; informational only
+# notes - list of notes on why changes were made, etc; informational only;
+#     defaults to empty list
 
 # new parameters for cmdsToPyData
 # ===============================
@@ -788,7 +789,8 @@ class WrapTranslateOldKeyError(WrapTranslateError): pass
 # useName - controls what pymel name to map this method to - if None, it uses
 #     the default name, generated from _MetaMayaCommandWrapper.flagToMethodName;
 #     otherwise, it is a custom name that is used directly; defaults to None
-# notes - list of notes on why changes were made, etc; informational only
+# notes - list of notes on why changes were made, etc; informational only;
+#     defaults to empty list
 #
 # Additonally, there is a new TwoWayDict apiCmdsEquivalents which stores
 # information about equivalent cmd/api wraps; it has no functional effect on
@@ -1001,7 +1003,7 @@ class WrapDataTranslator(object):
         # also try the fully-translated pymel name, because it seems data
         # sometimes got mistakenly stored in apiToPyData using these
         # fully-translated names...
-        fullyTranslatedName = factories._getApiOverrideNameAndData(apiClsName, pyNodeName, apiMethodName)[0]
+        fullyTranslatedName = factories._getApiOverrideNameAndData_old(apiClsName, pyNodeName, apiMethodName)[0]
         if fullyTranslatedName not in pyMethodNames:
             try:
                 self.doApiKeyTranslation(apiClsName, pyNodeName, apiMethodName, pyMethodName)
@@ -1120,6 +1122,11 @@ class WrapDataTranslator(object):
         self.translateCmdData()
 
     def translateApiData(self):
+        for oldKey, newKey in self.apiOldToNewKey.iteritems():
+            oldData = self.apiToPyData[oldKey]
+
+
+        removeRedundantData(self.newApitoPyData)
         for clsName, cls in factories.pyNodeNamesToPyNodes.iteritems():
             apiCls = cls.__apicls__
             apiClsName = apiCls.__name__
@@ -1204,7 +1211,7 @@ class WrapDataTranslator(object):
         if oldNew == 'old':
 #            # weird quirk of melMethodWrappable_old - since api methods are
 #            # constructed first, and creation of api methods calls
-#            # _getApiOverrideNameAndData, which can create "default" entries in
+#            # _getApiOverrideNameAndData_old, which can create "default" entries in
 #            # apiToPyData, and melMethodWrappable_old does a
 #            #    apiToPyData.has_key((classname, methodName))
 #            # check... the fact that api wraps are done first can change things

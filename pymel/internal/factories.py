@@ -481,7 +481,7 @@ if includeDocExamples:
 # once we convert the underlying apiToPyData to index by
 #   (pyClassName, apiMethodName)
 # keys, we can drop the apiClassName arg...
-def _getApiOverrideNameAndData(apiClassName, pyClassName, apiMethodName):
+def _getApiOverrideNameAndData_old(apiClassName, pyClassName, apiMethodName):
     methodInfo = apiClassInfo[apiClassName]['methods'][apiMethodName]
     try:
         basePyMethodName = methodInfo[0]['pymelName']
@@ -514,17 +514,90 @@ def _getApiOverrideNameAndData(apiClassName, pyClassName, apiMethodName):
     #overloadIndex = data.get( 'overloadIndex', None )
     return pyMethodName, data
 
-# only for use with "new" apiToPyData and cmdsToPyData format
-def _getTrickleUpData(pyClassName,
+def _basesToMro(bases):
+    DummyClass = type('DummyClass', bases, {})
+    return DummyClass.mro()[1:]
+
+_API_TO_PY_DEFAULTS = {'enabled':None, 'overloadIndex':None,
+                       'useName':None, 'notes':[]}
+
+
+# Determines whether the various dataTypes in apiToPyData will handle
+# inheritance lookups; ie, say we do not find
+#    apiToPyData[(pyClassName, apiMethodName)][dataType]
+# but we do find
+#    apiToPyData[(parentName, apiMethodName)][dataType]
+# where parentName represents a parent class of pyClassName.
+# Then if _API_TO_PY_INHERITANCE[dataType] is:
+#    'apiAncestor': we use it if the parent class's apicls is the same or an
+#        ancestor of the original class's apicls
+#    'apiSame': we use it if the parent's class's apicls is the exact same
+#        as the original class's apicls
+#    False: we do not use it, ever - ie, only and exact (python) class match
+#        is used
+_API_TO_PY_INHERITANCE = {'enabled':'apiAncestor', 'overloadIndex':'apiSame',
+                          'useName':'apiAncestor', 'notes':False}
 
 # only with with "new" apiToPyData format
-def _getApiOverrideData(pyClassName,
+# Checks for
+#     apiToPyData[(pyClassName, apiMethodName)][dataType]
+# if that doesn't exist, checks up the mro for
+#     apiToPyData[(parentName, apiMethodName)][dataType]
+# for any parent whose apiCls is the same...
+def _getApiOverrideData(pyClassName, apiMethodName, bases, apiCls, dataType,
+                        apiToPyData=None):
+    if dataType not in _API_TO_PY_DEFAULTS:
+        raise ValueError("Invalid apiToPyData dataType: %r" % dataType)
+
+    if not apiToPyData is None:
+        apiToPyData = globals()['apiToPyData']
+
+    # returns (hadData, data), where hadData is True/False, and data is the
+    # retrived data if hadData is True, or None if it was False
+    def getData(clsName):
+        key = (clsName, apiMethodName)
+        if key in apiToPyData:
+            methodData = apiToPyData[key]
+            if dataType in methodData:
+                return True, methodData[dataType]
+        return False, None
+
+    hadData, data = getData(pyClassName)
+    if hadData:
+        return data
+
+    inheritanceType = _API_TO_PY_INHERITANCE[dataType]
+    if inheritanceType:
+        # ok, the exact class given didn't have the data piece requested...
+        # check up the mro chain...
+        for parentCls in _basesToMro(bases):
+            hadData, data = getData(parentCls.__name__)
+            if not hadData:
+                continue
+
+            if hasattr(parentCls, '__apicls__'):
+                parentApiCls = parentCls.__apicls__
+            elif hasattr(parentCls, 'apicls'):
+                parentApiCls = parentCls.apicls
+            else:
+                continue
+
+            if inheritanceType == 'apiAncestor':
+                # use it if the parentCls's apiCls is an ancestor of apicls
+                if issubclass(apiCls, parentApiCls):
+                    return data
+            elif inheritanceType == 'apiSame':
+                # use it if the parentCls's apiCls IS apicls
+                if apiCls is parentApiCls:
+                    return data
+            else:
+                raise ValueError("invalid _API_TO_PY_INHERITANCE type: %r" % inheritanceType)
+
+    return _API_TO_PY_DEFAULTS[dataType]
+
 
 def getUncachedCmds():
     return list( set( map( itemgetter(0), inspect.getmembers( cmds, callable ) ) ).difference( cmdlist.keys() ) )
-
-
-
 
 
 #-----------------------
@@ -1620,7 +1693,7 @@ class ApiArgUtil(object):
             pymelClassName = apiClassNamesToPyNodeNames[self.apiClassName]
         except KeyError:
             return self.methodInfo.get('pymelName',self.methodName)
-        return _getApiOverrideNameAndData(self.apiClassName, pymelClassName,
+        return _getApiOverrideNameAndData_old(self.apiClassName, pymelClassName,
                                           self.methodName)[0]
 
     def getMethodDocs(self):
@@ -2619,10 +2692,6 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         return bool(foo2.bar != 7)
 
     @classmethod
-    def _needsWrapping(metacls, classname, bases, apicls):
-
-
-    @classmethod
     def _wrapApiMethods(metacls, classname, bases, classdict, apicls, proxy,
                         classInfo):
         # If not a proxy, we will need to "remove"/hide the original api methods
@@ -2640,10 +2709,6 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         # but that would probably be too slow to run from within __getattribute__,
         # which is called for EVERY attribute access...
         removeAttrs = set()
-
-        # First, decide if we need to do ANY wrapping...
-        if metacls.
-
 
         #------------------------
         # API Wrap
@@ -2664,7 +2729,7 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
         for methodName in classInfo['methods']:
             # don't rewrap if already herited from a base class that is not the apicls
             #_logger.debug("Checking method %s" % (methodName))
-            pymelName, data = _getApiOverrideNameAndData(apicls.__name__,
+            pymelName, data = _getApiOverrideNameAndData_old(apicls.__name__,
                                                          classname, methodName)
             if not proxy and pymelName != methodName:
                 removeAttrs.add(methodName)
