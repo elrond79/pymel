@@ -2992,8 +2992,12 @@ def addMayaType(mayaType, apiType=None):
         - mayaTypesToApiTypes
         - mayaTypesToApiEnums
     """
-    if apiType is None:
-        apiType = mayaTypeToApiType(mayaType)
+    try:
+        if apiType is None:
+            apiType = mayaTypeToApiType(mayaType)
+    except Exception:
+        print >> sys.__stdout__, "error geting apiType for mayaType %s" % mayaType
+        raise
 
     global _apiCacheInst
     _apiCacheInst.addMayaType(mayaType, apiType, globals())

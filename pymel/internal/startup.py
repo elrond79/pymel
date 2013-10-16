@@ -3,12 +3,19 @@ Maya-related functions, which are useful to both `api` and `core`, including `ma
 that maya is initialized in standalone mode.
 """
 from __future__ import with_statement
-import os.path, sys, glob, inspect
+import os.path
+import sys
+import glob
+import inspect
+import gzip
+import json
+
 import maya
 import maya.OpenMaya as om
 import maya.utils
 
-from pymel.util import picklezip, shellOutput, subpackages, refreshEnviron, namedtuple
+from pymel.util import picklezip, shellOutput, subpackages, refreshEnviron, \
+    namedtuple, enum
 import pymel.versions as versions
 from pymel.mayautils import getUserPrefsDir
 from pymel.versions import shortName, installName
@@ -382,6 +389,66 @@ def encodeFix():
                 except ImportError :
                     _logger.debug("Unable to import maya.app.baseUI")
 
+#===============================================================================
+# JSON encoding / decoding
+#===============================================================================
+
+class PymelJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, type):
+            # before encoding, ensure that the class object can be pulled
+            # from it's module...
+            moduleName = obj.__module__
+            className = obj.__name__
+            moduleObj = sys.modules.get(moduleName)
+            if moduleObj is None:
+                raise TypeError("cannot encode class %s.%s - module %s does not"
+                                " exist in sys.modules" % (moduleName,
+                                                           className,
+                                                           moduleName))
+            classFromModule = getattr(moduleObj, className, None)
+            if classFromModule is not obj:
+                raise TypeError("cannot encode class %s.%s - object %s in "
+                                " module %s (%r) is not the given class object "
+                                " (%r)" % (moduleName, className, className,
+                                           moduleName, classFromModule, obj))
+            result = {'_JSON_encoded_type': 'type', '__name__': obj.__name__,
+                      '__module__': obj.__module__}
+        elif isinstance(obj, enum.Enum):
+            name = obj._name
+            keys = obj._keys
+            values = obj._values
+            docs = obj._docs
+
+            # only thing we need to do is convert the "values" to a defaults
+            # dict, in case we have muliple keys per int-value (ie, like in
+            # MSpace.Space)
+            defaults = dict((enumInt, enumValue.key) for enumInt, enumValue
+                            in values.iteritems())
+
+            result = {'_JSON_encoded_type': 'Enum',
+                      'name': name,
+                      'keys': keys,
+                      'defaultKeys': defaults,
+                      'docs': docs}
+        else:
+            result = super(PymelJSONEncoder, self).default(obj)
+        return result
+
+
+def pymelJSONDecoderHook(objDict):
+    objType = objDict.pop('_JSON_encoded_type', None)
+    if objType is not None:
+        if objType == 'type':
+            module = __import__(objDict['__module__'], fromlist=[''])
+            return getattr(module, objDict['__name__'])
+        elif objType == 'Enum':
+            return enum.Enum(multiKeys=True, **objDict)
+        else:
+            raise TypeError("could not decode object with unrecognized python"
+                            " type: %s" % objType)
+    return objDict
+
 
 #===============================================================================
 # Cache utilities
@@ -400,40 +467,222 @@ class PymelCache(object):
     # override these
     NAME = ''   # ie, 'mayaApi'
     DESC = ''   # ie, 'the API cache' - used in error messages, etc
-    COMPRESSED = True
 
     # whether to add the version to the filename when writing out the cache
     USE_VERSION = True
 
-    def read(self):
-        newPath = self.path()
-        if self.COMPRESSED:
-            func = picklezip.load
-        else:
-            func = _load
+    # In general, compressed caches should have "two extensions", first giving
+    # the serialization type, and the second giving the compression type - ie,
+    #   mayaApi2014.json.zip
+    # If it has only one extension, it is usually a serialization type, and it
+    # has no compression:
+    #   mayaApi2014.json
+    # However, for backwards compatibility, if it only has one extension, and it
+    # is "zip", then the serialization is assumed to be pickle:
+    #   mayaApi2014.zip
 
-        _logger.debug(self._actionMessage('Loading', 'from', newPath))
+    # order gives preference - ie, first one is the "default"
+    SERIALIZATION_TYPES = ("json", "pickle")
+    SERIALIZATIONS_TO_EXTENSIONS = {"json": ".json", "pickle": ".bin"}
+    EXTENSIONS_TO_SERIALIZATIONS = dict(
+        (ext, fileType) for (fileType, ext)
+        in SERIALIZATIONS_TO_EXTENSIONS.iteritems()
+    )
+
+    COMPRESSION_TYPES = ("gzip", "uncompressed")
+    COMPRESSIONS_TO_EXTENSIONS = {"gzip": ".gz", "uncompressed": ""}
+    EXTENSIONS_TO_COMPRESSIONS = dict(
+        (ext, fileType) for (fileType, ext)
+        in COMPRESSIONS_TO_EXTENSIONS.iteritems()
+    )
+    COMPRESSION_TO_FILEOBJ = {"gzip": gzip.GzipFile, "uncompressed": file}
+
+    # For backwards compatibility, a map from a single extension to
+    # (serialization, compression)
+    COMBO_EXTENSIONS = {".zip": ("pickle", "gzip")}
+
+#     FILE_TYPES = COMPRESSION_TYPES + SERIALIZATION_TYPES
+#     FILE_TYPES_TO_EXTENSIONS = {"json": ".json", "pickle": ".bin",
+#                                 "zip": ".zip", "uncompressed": ""}
+#     FILE_EXTENSIONS_TO_TYPES = dict((ext, fileType) for (fileType, ext)
+#                                     in FILE_TYPES_TO_EXTENSIONS.iteritems())
+
+    def __init__(self):
+        self._readPath = None
+        self._readSerialization = None
+        self._readCompression = None
+
+    def read(self, serialization=None, compression=None, comboExtension=None):
+        result = self.pathAndTypes(serialization=serialization,
+                                   compression=compression,
+                                   comboExtension=comboExtension, onDisk=True)
+        if result is None:
+            _logger.error("Unable to find %s on disk" % self.DESC)
+
+        path, serialization, compression = result
+
+        # if we get a result with compression, check to see if there is a
+        # result with NO compression, and if so, whether it has a newer
+        # timestamp... if so, then use it instead
+        if compression != "uncompressed":
+            uncompressedResult = self.pathAndTypes(serialization=serialization,
+                                                   compression="uncompressed",
+                                                   onDisk=True)
+            if uncompressedResult is not None:
+                uncompressedPath = uncompressedResult[0]
+                assert uncompressedResult[1] == serialization
+                assert uncompressedResult[2] == "uncompressed"
+                compressedTime = os.path.getmtime(path)
+                uncompressedTime = os.path.getmtime(uncompressedPath)
+                if uncompressedTime > compressedTime:
+                    path, serialization, compression = uncompressedResult
+
+        readClass = self.COMPRESSION_TO_FILEOBJ.get(compression)
+        if readClass is None:
+            raise ValueError("unrecognized compression: %s" % compression)
+
+        _logger.debug(self._actionMessage('Loading', 'from', path))
 
         try:
-            return func(newPath)
+            # alas, GzipFile has no context manager support...
+            handle = readClass(path, "rb")
+            try:
+                contents = handle.read()
+            finally:
+                handle.close()
         except Exception, e:
-            self._errorMsg('read', 'from', newPath, e)
+            self._errorMsg('read', 'from', path, e)
+            return
 
-    def write(self, data):
-        newPath = self.path()
-        if self.COMPRESSED:
-            func = picklezip.dump
+
+        self._readPath = path
+        self._readSerialization = serialization
+        self._readCompression = compression
+
+        _logger.debug("loaded cache: %s" % (result,))
+
+        if serialization == "pickle":
+            result = pickle.loads(contents)
+        elif serialization == "json":
+            result = json.loads(contents, object_hook=pymelJSONDecoderHook)
         else:
-            func = _dump
+            raise ValueError("unrecognized serialization: %s" % serialization)
+        return result
 
-        _logger.info(self._actionMessage('Saving', 'to', newPath))
+    def write(self, data, serialization=None, compression=None,
+              comboExtension=None):
 
-        try :
-            func( data, newPath, 2)
+        result = self.pathAndTypes(serialization=serialization,
+                                   compression=compression,
+                                   comboExtension=comboExtension, onDisk=False)
+        path, serialization, compression = result
+
+        if serialization == "pickle":
+            contents = pickle.dumps(data, 2)
+        elif serialization == "json":
+            contents = json.dumps(data, indent=4, sort_keys=True,
+                                  cls=PymelJSONEncoder)
+
+        writeClass = self.COMPRESSION_TO_FILEOBJ.get(compression)
+        if writeClass is None:
+            raise ValueError("unrecognized compression: %s" % compression)
+
+        _logger.info(self._actionMessage('Saving', 'to', path))
+        try:
+            # alas, GzipFile has no context manager support...
+            handle = writeClass(path, "wb")
+            try:
+                handle.write(contents)
+            finally:
+                handle.close()
         except Exception, e:
-            self._errorMsg('write', 'to', newPath, e)
+            self._errorMsg('write', 'to', path, e)
 
-    def path(self):
+    def pathAndTypes(self, serialization=None, compression=None,
+                     comboExtension=None, onDisk=False):
+        '''Returns (path, serialization, compression)
+
+        Parameters
+        ----------
+        serialization : str or None
+            if given, specify the serialization type of the path to return;
+            if None, and onDisk is False, the default serialization will be
+            used; if None, and onDisk is True, then the function will use/return
+            the first serialization that exists on disk
+        compression : str or None
+            if given, specify the compression type of the path to return;
+            if None, and onDisk is False, the default compression will be
+            used; if None, and onDisk is True, then the function will use/return
+            the first compression that exists on disk
+        comboExtension : str or None
+            as a special case for backwards compatibility, it is possible to
+            specify a single extension, which maps to both a serialization type
+            and a compression type (ie, "myCache.zip" is the old format, and
+            means gzip-compression and pickle-serialization); if this is given,
+            then both serialization and compression MUST be None
+        onDisk : bool
+            if True, then returned paths must exist on disk; also affects the
+            behavior if either serialization or compression is None. If either
+            is None, and onDisk is True, then it will search all available
+            serialization or compression types to find the first one that exists
+            on disk. In either case, if no compatible path may be found on disk,
+            the single item None is returned, instead of the standard tuple
+        '''
+        if comboExtension is not None:
+            if serialization is not None or compression is not None:
+                raise ValueError("if comboExtension is given, both"
+                                 " serialization and compression must be None")
+            serialization, compression = self.COMBO_EXTENSIONS[comboExtension]
+        elif onDisk and None in (serialization, compression):
+            # we need to determine which file type to read, from what's on
+            # disk...
+            if serialization is None:
+                serialTypes = self.SERIALIZATION_TYPES
+            else:
+                serialTypes = [serialization]
+            if compression is None:
+                compressTypes = self.COMPRESSION_TYPES
+            else:
+                compressTypes = [compression]
+
+            for currentSerialization in serialTypes:
+                for currentCompression in compressTypes:
+                    result = self.pathAndTypes(serialization=currentSerialization,
+                                               compression=currentCompression,
+                                               onDisk=True)
+                    if result is not None:
+                        return result
+                # we haven't found anything - as a last ditch, try the old
+                # cache.zip (ie, no-explicit-serialization) style path, for
+                # backwards compatibility...
+                for currentCombo in self.COMBO_EXTENSIONS:
+                    result = self.pathAndTypes(comboExtension=currentCombo,
+                                               onDisk=True)
+                    if result is not None:
+                        return result
+                # we found nothing - return None
+                return None
+
+        # if we're here, then we're not doing any "guess-and-check" - there
+        # is only one possible value of serialization AND compression...
+
+        if compression is None:
+            compression = self.COMPRESSION_TYPES[0]
+        if serialization is None:
+            serialization = self.SERIALIZATION_TYPES[0]
+
+        if comboExtension is not None:
+            # special case for backwards compatibility - if the serialization is
+            # a combo extension, use it as the only extension...
+            serialExt = ""
+            compressExt = comboExtension
+        else:
+            serialExt = self.SERIALIZATIONS_TO_EXTENSIONS[serialization]
+            compressExt = self.COMPRESSIONS_TO_EXTENSIONS[compression]
+
+        # if we got here, then both serialization and compression should be
+        # "set". Just construct the appropriate path...
+
         if self.USE_VERSION:
             if hasattr(self, 'version'):
                 short_version = str(self.version)
@@ -442,12 +691,12 @@ class PymelCache(object):
         else:
             short_version = ''
 
-        newPath = _moduleJoin( 'cache', self.NAME+short_version )
-        if self.COMPRESSED:
-            newPath += '.zip'
-        else:
-            newPath += '.bin'
-        return newPath
+        newPath = _moduleJoin('cache', self.NAME + short_version)
+        newPath = newPath + serialExt + compressExt
+
+        if onDisk and not os.path.exists(newPath):
+            return None
+        return newPath, serialization, compression
 
     @classmethod
     def _actionMessage(cls, action, direction, location):
@@ -466,8 +715,9 @@ class PymelCache(object):
         '''
         actionMsg = cls._actionMessage(action, direction, path)
         _logger.error("Unable to %s: %s" % (actionMsg, error))
-        import traceback
-        _logger.debug(traceback.format_exc())
+        if sys.exc_type is not None:
+            import traceback
+            _logger.debug(traceback.format_exc())
 
 
 
@@ -492,7 +742,6 @@ class SubItemCache(PymelCache):
     >>> class NodeCache(SubItemCache):
     ...     NAME = 'mayaNodes'
     ...     DESC = 'the maya nodes cache'
-    ...     COMPRESSED = False
     ...     _CACHE_NAMES = ['nodeTypes']
     ...     def rebuild(self):
     ...         import maya.cmds
@@ -548,6 +797,9 @@ class SubItemCache(PymelCache):
         if data is None:
             self.rebuild()
             self.save()
+        elif self._readCompression == "uncompressed":
+            # write out a compressed version, for faster reading later
+            self.save(compression=self.COMPRESSION_TYPES[0])
 
     # override this...
     def rebuild(self):
@@ -599,7 +851,7 @@ class SubItemCache(PymelCache):
             self.update(data, cacheNames=self._CACHE_NAMES)
         return data
 
-    def save(self, obj=None):
+    def save(self, obj=None, serialization=None, compression=None):
         '''Saves the cache
 
         Will optionally update the caches from the given object (which may be
@@ -617,7 +869,7 @@ class SubItemCache(PymelCache):
                 newData.append(val)
             data = tuple(newData)
 
-        self.write(data)
+        self.write(data, serialization=serialization, compression=compression)
 
     # was called 'caches'
     def contents(self):
