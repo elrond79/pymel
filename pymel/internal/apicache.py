@@ -1023,7 +1023,8 @@ class ApiCache(startup.SubItemCache):
         self.mayaTypesToApiEnums.pop( mayaType, None )
         self.mayaTypesToApiTypes.pop( mayaType, None )
 
-    def read(self, raw=False):
+    def read(self, raw=False, serialization=None, compression=None,
+             comboExtension=None):
         data = super(ApiCache, self).read()
         if not raw:
             # Before 2012, we cached reservedMayaTypes and reservedApiTypes,
