@@ -438,7 +438,7 @@ ENCODED_TYPE = '_JSON_encoded_type'
 class PymelJSONEncoder(json.JSONEncoder):
 
     def default(self, obj):
-        #print "default: %r" % (obj,)
+        # print "default: %r" % (obj,)
         if isinstance(obj, type):
             # before encoding, ensure that the class object can be pulled
             # from it's module...
@@ -515,44 +515,110 @@ class PymelJSONEncoder(json.JSONEncoder):
         # it definitely takes some hacking...
 
         def iterencode(self, o, *args, **kwargs):
-            #print "iterencode: %r" % (o,)
+            # print "iterencode: %r" % (o,)
             import json.encoder
             orig_make_iterencode = json.encoder._make_iterencode
             orig_c_make_encoder = json.encoder.c_make_encoder
 
             def new_make_iterencode(*args, **kwargs):
+                # WARNING!!!!!!!
+                # THIS DOES NOT CURRENLTY WORK!
+
+                # The problem is that all three of _iterencode,
+                # _iterencode_dict, and _iterencode_list reference themselves
+                # and the other two.  This means, that for all three, we need
+                # edit their enclosures to point to the "wrapped"/"new" versions
+                # of these functions.
+
+                # This means that we need to generate "recursive closures" - ie,
+                # _iterencode needs to have inside of it's own closure a
+                # referernce to itself, _iterencode.
+
+                # However, since the only official way to set a closure for a
+                # function is to generaate a NEW function - by calling
+                # FunctionType(code, ..., closure) - there's no way for me to
+                # generate a function (from an existing code object) that has
+                # itself in it's own closure.
+
+                # In essence, function objects can be thought of as immutable,
+                # like tuples; so the problem is similar to asking, "How can I
+                # make a tuple which contains itself?"
+
+                # The simple answer is: you can't.  The longer answer is - you
+                # can, but it's incredibly hacky, and requires calling out to
+                # the cpython code - basically, a function which allows you to
+                # alter the members of a tuple, what is supposed to be an
+                # immutable type.
+
+                # With such a function, we can make this work - by modifying
+                # the closures of the original functions in place, since they
+                # are just tuples of cell objects - but this is EXTREMELY hacky,
+                # on top of a solution which is already extremely hacky.
+
+                # For reference, here's a function which allows setting of a
+                # tuple:
+
+# def set_tuple(array, index, value):
+#     import ctypes
+#
+#     # Sanity check. We can't let PyTuple_SetItem fail, or it will Py_DECREF
+#     # the object and destroy it.
+#     if not isinstance(array, tuple):
+#         raise TypeError("array must be a tuple")
+#
+#     if not 0 <= index < len(tup):
+#         raise IndexError("tuple assignment index out of range")
+#
+#     arrayobj = ctypes.py_object(array)
+#     valobj = ctypes.py_object(value)
+#
+#     # Need to drop the refcount to 1 in order to use PyTuple_SetItem.
+#     # Needless to say, this is incredibly dangerous.
+#     refcnt = ctypes.pythonapi.Py_DecRef(arrayobj)
+#     for i in range(refcnt-1):
+#         ctypes.pythonapi.Py_DecRef(arrayobj)
+#
+#     try:
+#         ret = ctypes.pythonapi.PyTuple_SetItem(arrayobj, ctypes.c_ssize_t(index), valobj)
+#         if ret != 0:
+#             raise RuntimeError("PyTuple_SetItem failed")
+#     except:
+#         raise SystemError("FATAL: PyTuple_SetItem failed: tuple probably unusable")
+#
+#     # Restore refcount and add one more for the new self-reference
+#     for i in range(refcnt+1):
+#         ctypes.pythonapi.Py_IncRef(arrayobj)
+
                 orig_iterenc_func = orig_make_iterencode(*args, **kwargs)
-                dict_closure_index = get_closure_var_index(orig_iterenc_func,
-                                                           '_iterencode_dict')
                 orig_iterencode_dict = get_closure_var(orig_iterenc_func,
-                                                       dict_closure_index)
-                list_closure_index = get_closure_var_index(orig_iterenc_func,
-                                                           '_iterencode_list')
+                                                       '_iterencode_dict')
                 orig_iterencode_list = get_closure_var(orig_iterenc_func,
-                                                       list_closure_index)
+                                                       '_iterencode_list')
 
                 def new_iterencode_dict(dct, *args, **kwargs):
+                    # print "pyDct", dct
                     jsonDct = self.pyDictToJsonDict(dct)
-                    #print "jsonDct:", jsonDct
+                    # print "jsonDct:", jsonDct
                     return orig_iterencode_dict(jsonDct, *args, **kwargs)
 
                 def new_iterencode_list(lst, *args, **kwargs):
+                    # print "pylst:", lst
                     if isinstance(lst, tuple):
                         obj = {ENCODED_TYPE: 'tuple', 'items': list(lst)}
-                        # we use the orig_iterenc_func here, because we don't
+                        # we use the orig_iterencode_dict here, because we don't
                         # wish/need to double-encode this... ie, we're mapped
                         # a tuple to a dict, THAT CONTAINS ENCODED_TYPE; if we
                         # were to then use new_iterenc_func, it would call
                         # our new_iterencode_dict, which would detect that the
                         # dict contains ENCODED_TYPE, and then re-encode
                         # it as a PythonDict type...
-                        return orig_iterenc_func(obj, *args, **kwargs)
+                        return orig_iterencode_dict(obj, *args, **kwargs)
                     else:
                         return orig_iterencode_list(lst, *args, **kwargs)
 
                 closure_replacements = {
-                    dict_closure_index: new_iterencode_dict,
-                    list_closure_index: new_iterencode_list,
+                    '_iterencode_dict': new_iterencode_dict,
+                    '_iterencode_list': new_iterencode_list,
                 }
                 new_iterenc_func = replace_closure_values(orig_iterenc_func,
                     closure_replacements)
@@ -570,7 +636,7 @@ class PymelJSONEncoder(json.JSONEncoder):
 
     @classmethod
     def pyDictToJsonDict(cls, pyDict):
-        #print "pyDictToJsonDict: %r" % (pyDict,)
+        # print "pyDictToJsonDict: %r" % (pyDict,)
         # if all keys are strings, no conversion needed
         if (all(type(key) in (str, unicode) for key in pyDict)
                 # (also, we need to encode if the dict contains our special
@@ -594,9 +660,9 @@ class PymelJSONEncoder(json.JSONEncoder):
                 # it's a "normal" key - we can add it into the unencodedKeys
                 unencodedKeys[pyKey] = val
             else:
-                #print "pyKey: %r" % (pyKey,)
+                # print "pyKey: %r" % (pyKey,)
                 jsonKey = json.dumps(pyKey, sort_keys=True, cls=cls)
-                #print "jsonKey: %r"% (jsonKey,)
+                # print "jsonKey: %r" % (jsonKey,)
                 encodedKeys[jsonKey] = val
         return jsonDict
 
