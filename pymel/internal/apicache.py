@@ -1025,7 +1025,9 @@ class ApiCache(startup.SubItemCache):
 
     def read(self, raw=False, serialization=None, compression=None,
              comboExtension=None):
-        data = super(ApiCache, self).read()
+        data = super(ApiCache, self).read(serialization=serialization,
+                                          compression=compression,
+                                          comboExtension=comboExtension)
         if not raw:
             # Before 2012, we cached reservedMayaTypes and reservedApiTypes,
             # even though they weren't used...

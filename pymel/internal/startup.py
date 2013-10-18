@@ -423,41 +423,144 @@ if _PY_27_JSON:
         closure_index = get_closure_var_index(func, closure_var_name_or_index)
         return func.func_closure[closure_index].cell_contents
 
-    def replace_closure_values(func, varsToNewValues):
+    def set_closure(func, newClosure):
+        # here's where it gets super hacky!
+        import ctypes
+
+        funcObj = ctypes.py_object(func)
+        closureObj = ctypes.py_object(newClosure)
+
+        try:
+            ret = ctypes.pythonapi.PyFunction_SetClosure(funcObj, closureObj)
+            if ret != 0:
+                raise RuntimeError("PyFunction_SetClosure failed")
+        except:
+            raise SystemError("FATAL: PyFunction_SetClosure failed: function probably unusable")
+        return func
+
+    def replace_closure_values(func, varsToNewValues, inPlace=True):
         new_closure = list(func.func_closure)
         for closure_var_name_or_index, new_value in varsToNewValues.iteritems():
             closure_index = get_closure_var_index(func, closure_var_name_or_index)
             new_cell = make_cell(new_value)
             new_closure[closure_index] = new_cell
-        return types.FunctionType(func.func_code, func.func_globals,
-                                  func.func_name, func.func_defaults,
-                                  tuple(new_closure))
+        new_closure = tuple(new_closure)
 
+        if inPlace:
+            set_closure(func, new_closure)
+            return func
+        else:
+            return types.FunctionType(func.func_code, func.func_globals,
+                                      func.func_name, func.func_defaults,
+                                      new_closure)
 
 ENCODED_TYPE = '_JSON_encoded_type'
+ORIG_ENCODED_TYPE = '_ORIG' + ENCODED_TYPE
+
+class JSONEncodedObj(dict):
+    '''A class used just to mark a dict as being "special", ie one that has
+    a special ENCODED_TYPE type key which should be treated as special, and
+    was added by the encoding process
+
+    This is to distinguish from a dict which is fed in with an ENCODED_TYPE
+    value; this should NOT be treated as special, and will be moved to the
+    ORIG_ENCODED_TYPE key to mark this...
+    '''
+
+    def __new__(cls, typeName, *args, **kwargs):
+        inst = super(JSONEncodedObj, cls).__new__(cls, *args, **kwargs)
+        inst[ENCODED_TYPE] = typeName
+        return inst
+
+    def __init__(self, typeName, *args, **kwargs):
+        super(JSONEncodedObj, self).__init__(*args, **kwargs)
+
+    @classmethod
+    def fromPyDict(cls, pyDict):
+        # if all keys are strings, no conversion needed
+        if (all(type(key) in (str, unicode) for key in pyDict)
+                # (also, we need to encode if the dict contains our special
+                # signal key, ENCODED_TYPE)
+                and ENCODED_TYPE not in pyDict):
+            return pyDict
+
+        if isinstance(pyDict, cls):
+            return pyDict
+
+        jsonDict = {}
+
+        # otherwise, we mark that it's been converted by adding our special
+        # ENCODED_TYPE key...
+        # also, we keep two dicts, one with encoded keys, and one with
+        # un-encoded keys... do this to avoid unnecessary extra level of
+        # encoding for string keys, if there is a mix of string and non-string
+        # keys...
+        encodedKeys = {}
+        unencodedKeys = {}
+        for pyKey, val in pyDict.iteritems():
+            if pyKey == ENCODED_TYPE:
+                # if the original dict has an ENCODED_TYPE key, since it was
+                # assumed to NOT be a JSONEncodedObj, then it must be a 'non-
+                # special' key, and we need to mark it as such, by storing it
+                # in ORIG_ENCODED_TYPE
+                jsonDict[ORIG_ENCODED_TYPE] = val
+            elif isinstance(pyKey, (str, unicode)):
+                # it's a "normal" key - we can add it into the unencodedKeys
+                unencodedKeys[pyKey] = val
+            else:
+                # print "pyKey: %r" % (pyKey,)
+                jsonKey = json.dumps(pyKey, sort_keys=True, check_circular=True,
+                                     cls=PymelJSONEncoder)
+                # print "jsonKey: %r" % (jsonKey,)
+                encodedKeys[jsonKey] = val
+
+        if encodedKeys:
+            # might not be encoded keys if we're only encoding because there's
+            # an ENCODED_TYPE key
+            jsonDict['encodedKeys'] = encodedKeys
+        if unencodedKeys:
+            jsonDict['unencodedKeys'] = unencodedKeys
+
+        return cls('PythonDict', jsonDict)
+
+    def toPyDict(self):
+        pyDict = dict(self.get('unencodedKeys', {}))
+
+        # now, decode the keys that need decoding...
+        for jsonKey, val in self.get('encodedKeys', {}).iteritems():
+            pyKey = json.loads(jsonKey, object_hook=pymelJSONDecoderHook)
+            pyDict[pyKey] = val
+
+        if ORIG_ENCODED_TYPE in self:
+            pyDict[ENCODED_TYPE] = self[ORIG_ENCODED_TYPE]
+        return pyDict
+
 class PymelJSONEncoder(json.JSONEncoder):
 
     def default(self, obj):
         # print "default: %r" % (obj,)
-        if isinstance(obj, type):
+        if isinstance(obj, (type, types.FunctionType,
+                            types.BuiltinFunctionType)):
             # before encoding, ensure that the class object can be pulled
             # from it's module...
             moduleName = obj.__module__
-            className = obj.__name__
+            objName = obj.__name__
             moduleObj = sys.modules.get(moduleName)
             if moduleObj is None:
                 raise TypeError("cannot encode class %s.%s - module %s does not"
                                 " exist in sys.modules" % (moduleName,
-                                                           className,
+                                                           objName,
                                                            moduleName))
-            classFromModule = getattr(moduleObj, className, None)
-            if classFromModule is not obj:
-                raise TypeError("cannot encode class %s.%s - object %s in "
-                                " module %s (%r) is not the given class object "
-                                " (%r)" % (moduleName, className, className,
-                                           moduleName, classFromModule, obj))
-            result = {ENCODED_TYPE: 'type', '__name__': obj.__name__,
-                      '__module__': obj.__module__}
+            objFromModule = getattr(moduleObj, objName, None)
+            if objFromModule is not obj:
+                raise TypeError("cannot encode class/function %s.%s - object %s"
+                                " in module %s (%r) is not the given class"
+                                " object (%r)"
+                                % (moduleName, objName, objName, moduleName,
+                                   objFromModule, obj))
+            result = JSONEncodedObj('clsOrFunc', {'__name__': obj.__name__,
+                                                  '__module__': obj.__module__})
+
         elif isinstance(obj, enum.Enum):
             name = obj._name
             keys = obj._keys
@@ -470,11 +573,11 @@ class PymelJSONEncoder(json.JSONEncoder):
             defaults = dict((enumInt, enumValue.key) for enumInt, enumValue
                             in values.iteritems())
 
-            result = {ENCODED_TYPE: 'Enum',
-                      'name': name,
-                      'keys': keys,
-                      'defaultKeys': defaults,
-                      'docs': docs}
+            result = JSONEncodedObj('Enum',
+                                    {'name': name,
+                                     'keys': keys,
+                                     'defaultKeys': defaults,
+                                     'docs': docs})
         else:
             result = super(PymelJSONEncoder, self).default(obj)
         return result
@@ -491,7 +594,7 @@ class PymelJSONEncoder(json.JSONEncoder):
         # which we can override directly...
 
         def _iterencode_dict(self, dct, *args, **kwargs):
-            jsonDct = self.pyDictToJsonDict(dct)
+            jsonDct = JSONEncodedObj.fromPyDict(dct)
             return super(PymelJSONEncoder, self)._iterencode_dict(jsonDct,
                                                                   *args,
                                                                   **kwargs)
@@ -521,9 +624,6 @@ class PymelJSONEncoder(json.JSONEncoder):
             orig_c_make_encoder = json.encoder.c_make_encoder
 
             def new_make_iterencode(*args, **kwargs):
-                # WARNING!!!!!!!
-                # THIS DOES NOT CURRENLTY WORK!
-
                 # The problem is that all three of _iterencode,
                 # _iterencode_dict, and _iterencode_list reference themselves
                 # and the other two.  This means, that for all three, we need
@@ -535,7 +635,7 @@ class PymelJSONEncoder(json.JSONEncoder):
                 # referernce to itself, _iterencode.
 
                 # However, since the only official way to set a closure for a
-                # function is to generaate a NEW function - by calling
+                # function is to generate a NEW function - by calling
                 # FunctionType(code, ..., closure) - there's no way for me to
                 # generate a function (from an existing code object) that has
                 # itself in it's own closure.
@@ -546,65 +646,32 @@ class PymelJSONEncoder(json.JSONEncoder):
 
                 # The simple answer is: you can't.  The longer answer is - you
                 # can, but it's incredibly hacky, and requires calling out to
-                # the cpython code - basically, a function which allows you to
-                # alter the members of a tuple, what is supposed to be an
-                # immutable type.
+                # the cpython code - basically, we can set the closure by
+                # calling the c code that's responsible for setting the
+                # enclosure.
 
-                # With such a function, we can make this work - by modifying
-                # the closures of the original functions in place, since they
-                # are just tuples of cell objects - but this is EXTREMELY hacky,
-                # on top of a solution which is already extremely hacky.
+                # This is obviously incredibly hacky, and the only reason I'm
+                # "allowing" it is because it should never have to be run
+                # in end-user's code - it should only be necessary when
+                # generating the json caches, which should only need to be done
+                # by the pymel devs, when releasing / updating caches...
 
-                # For reference, here's a function which allows setting of a
-                # tuple:
-
-# def set_tuple(array, index, value):
-#     import ctypes
-#
-#     # Sanity check. We can't let PyTuple_SetItem fail, or it will Py_DECREF
-#     # the object and destroy it.
-#     if not isinstance(array, tuple):
-#         raise TypeError("array must be a tuple")
-#
-#     if not 0 <= index < len(tup):
-#         raise IndexError("tuple assignment index out of range")
-#
-#     arrayobj = ctypes.py_object(array)
-#     valobj = ctypes.py_object(value)
-#
-#     # Need to drop the refcount to 1 in order to use PyTuple_SetItem.
-#     # Needless to say, this is incredibly dangerous.
-#     refcnt = ctypes.pythonapi.Py_DecRef(arrayobj)
-#     for i in range(refcnt-1):
-#         ctypes.pythonapi.Py_DecRef(arrayobj)
-#
-#     try:
-#         ret = ctypes.pythonapi.PyTuple_SetItem(arrayobj, ctypes.c_ssize_t(index), valobj)
-#         if ret != 0:
-#             raise RuntimeError("PyTuple_SetItem failed")
-#     except:
-#         raise SystemError("FATAL: PyTuple_SetItem failed: tuple probably unusable")
-#
-#     # Restore refcount and add one more for the new self-reference
-#     for i in range(refcnt+1):
-#         ctypes.pythonapi.Py_IncRef(arrayobj)
-
-                orig_iterenc_func = orig_make_iterencode(*args, **kwargs)
-                orig_iterencode_dict = get_closure_var(orig_iterenc_func,
+                iterencode_func = orig_make_iterencode(*args, **kwargs)
+                orig_iterencode_dict = get_closure_var(iterencode_func,
                                                        '_iterencode_dict')
-                orig_iterencode_list = get_closure_var(orig_iterenc_func,
+                orig_iterencode_list = get_closure_var(iterencode_func,
                                                        '_iterencode_list')
 
                 def new_iterencode_dict(dct, *args, **kwargs):
-                    # print "pyDct", dct
-                    jsonDct = self.pyDictToJsonDict(dct)
-                    # print "jsonDct:", jsonDct
+                    # print "%s (%s) - pyDct  :            %r" % (id(dct), type(dct).__name__, dct,)
+                    jsonDct = JSONEncodedObj.fromPyDict(dct)
+                    # print "%s (%s) - jsonDct:            %r" % (id(jsonDct), type(jsonDct).__name__, jsonDct,)
                     return orig_iterencode_dict(jsonDct, *args, **kwargs)
 
                 def new_iterencode_list(lst, *args, **kwargs):
                     # print "pylst:", lst
                     if isinstance(lst, tuple):
-                        obj = {ENCODED_TYPE: 'tuple', 'items': list(lst)}
+                        obj = JSONEncodedObj('tuple', {'items': list(lst)})
                         # we use the orig_iterencode_dict here, because we don't
                         # wish/need to double-encode this... ie, we're mapped
                         # a tuple to a dict, THAT CONTAINS ENCODED_TYPE; if we
@@ -620,9 +687,12 @@ class PymelJSONEncoder(json.JSONEncoder):
                     '_iterencode_dict': new_iterencode_dict,
                     '_iterencode_list': new_iterencode_list,
                 }
-                new_iterenc_func = replace_closure_values(orig_iterenc_func,
-                    closure_replacements)
-                return new_iterenc_func
+                replace_closure_values(iterencode_func, closure_replacements)
+                replace_closure_values(orig_iterencode_dict,
+                                       closure_replacements)
+                replace_closure_values(orig_iterencode_list,
+                                       closure_replacements)
+                return iterencode_func
 
             json.encoder._make_iterencode = new_make_iterencode
             json.encoder.c_make_encoder = None
@@ -631,68 +701,25 @@ class PymelJSONEncoder(json.JSONEncoder):
             finally:
                 json.encoder._make_iterencode = orig_make_iterencode
                 json.encoder.c_make_encoder = orig_c_make_encoder
-        #
-    #
 
-    @classmethod
-    def pyDictToJsonDict(cls, pyDict):
-        # print "pyDictToJsonDict: %r" % (pyDict,)
-        # if all keys are strings, no conversion needed
-        if (all(type(key) in (str, unicode) for key in pyDict)
-                # (also, we need to encode if the dict contains our special
-                # signal key, ENCODED_TYPE)
-                and ENCODED_TYPE not in pyDict):
-            return pyDict
-
-        # otherwise, we mark that it's been converted by adding our special
-        # ENCODED_TYPE key...
-        # also, we keep two dicts, one with encoded keys, and one with
-        # un-encoded keys... do this to avoid unnecessary extra level of
-        # encoding for string keys, if there is a mix of string and non-string
-        # keys...
-        encodedKeys = {}
-        unencodedKeys = {}
-        jsonDict = {'encodedKeys': encodedKeys, 'unencodedKeys': unencodedKeys,
-                    ENCODED_TYPE: 'PythonDict'}
-
-        for pyKey, val in pyDict.iteritems():
-            if isinstance(pyKey, (str, unicode)):
-                # it's a "normal" key - we can add it into the unencodedKeys
-                unencodedKeys[pyKey] = val
-            else:
-                # print "pyKey: %r" % (pyKey,)
-                jsonKey = json.dumps(pyKey, sort_keys=True, cls=cls)
-                # print "jsonKey: %r" % (jsonKey,)
-                encodedKeys[jsonKey] = val
-        return jsonDict
-
-    @classmethod
-    def jsonDictToPyDict(cls, jsonDict):
-        pyDict = dict(jsonDict['unencodedKeys'])
-
-        # now, decode the keys that need decoding...
-        for jsonKey, val in jsonDict['encodedKeys'].iteritems():
-            pyKey = json.loads(jsonKey, object_hook=cls.decoderHook)
-            pyDict[pyKey] = val
-        return pyDict
-
-    @classmethod
-    def decoderHook(cls, objDict):
-        objType = objDict.pop(ENCODED_TYPE, None)
-        if objType is not None:
-            if objType == 'type':
-                module = __import__(objDict['__module__'], fromlist=[''])
-                return getattr(module, objDict['__name__'])
-            elif objType == 'tuple':
-                return tuple(objDict['items'])
-            elif objType == 'Enum':
-                return enum.Enum(multiKeys=True, **objDict)
-            elif objType == 'PythonDict':
-                return cls.jsonDictToPyDict(objDict)
-            else:
-                raise TypeError("could not decode object with unrecognized"
-                                " python type: %s" % objType)
-        return objDict
+def pymelJSONDecoderHook(objDict):
+    objType = objDict.get(ENCODED_TYPE)
+    if objType is not None:
+        if objType == 'clsOrFunc':
+            module = __import__(objDict['__module__'], fromlist=[''])
+            return getattr(module, objDict['__name__'])
+        elif objType == 'tuple':
+            return tuple(objDict['items'])
+        elif objType == 'Enum':
+            kwargs = dict((key, val) for key, val in objDict.iteritems()
+                          if key != ENCODED_TYPE)
+            return enum.Enum(multiKeys=True, **kwargs)
+        elif objType == 'PythonDict':
+            return JSONEncodedObj('PythonDict', objDict).toPyDict()
+        else:
+            raise TypeError("could not decode object with unrecognized"
+                            " python type: %s" % objType)
+    return objDict
 
 
 #===============================================================================
@@ -809,7 +836,7 @@ class PymelCache(object):
             result = pickle.loads(contents)
         elif serialization == "json":
             result = json.loads(contents,
-                                object_hook=PymelJSONEncoder.decoderHook)
+                                object_hook=pymelJSONDecoderHook)
         else:
             raise ValueError("unrecognized serialization: %s" % serialization)
         return result
@@ -826,7 +853,7 @@ class PymelCache(object):
             contents = pickle.dumps(data, 2)
         elif serialization == "json":
             contents = json.dumps(data, indent=4, sort_keys=True,
-                                  cls=PymelJSONEncoder)
+                                  check_circular=True, cls=PymelJSONEncoder)
 
         writeClass = self.COMPRESSION_TO_FILEOBJ.get(compression)
         if writeClass is None:
