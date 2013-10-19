@@ -1115,6 +1115,7 @@ def makeQueryFlagMethod( inFunc, flag, newMethodName=None, docstring='', cmdName
             return inFunc( self, **kwargs )
 
     if newMethodName:
+        newMethodName = util.toStr(newMethodName)
         wrappedMelFunc.__name__ = newMethodName
     else:
         wrappedMelFunc.__name__ = flag
@@ -1145,6 +1146,7 @@ def makeEditFlagMethod( inFunc, flag, newMethodName=None, docstring='', cmdName=
             return inFunc( self, **kwargs )
 
     if newMethodName:
+        newMethodName = util.toStr(newMethodName)
         wrappedMelFunc.__name__ = newMethodName
     else:
         wrappedMelFunc.__name__ = flag
@@ -2462,6 +2464,8 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
 
                     overloadIndex = data.get( 'overloadIndex', None )
 
+                    if isinstance(pymelName, unicode):
+                        pymelName = util.toStr(pymelName)
                     assert isinstance( pymelName, str ), "%s.%s: %r is not a valid name" % ( classname, methodName, pymelName)
 
                     # TODO: some methods are being wrapped for the base class,
@@ -2523,6 +2527,7 @@ class MetaMayaTypeWrapper(util.metaReadOnlyAttr) :
 
 
         # create the new class
+        classname = util.toStr(classname)
         newcls = super(MetaMayaTypeWrapper, cls).__new__(cls, classname, bases, classdict)
 
         # shortcut for ensuring that our class constants are the same type as the class we are creating

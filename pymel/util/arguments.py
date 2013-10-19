@@ -62,6 +62,20 @@ def convertListArgs( args ):
         return tuple(args[0])
     return args
 
+def toStr(input, encoding='ascii'):
+    '''Converts unicode strings to type str
+
+    Useful in situations where we NEED something to be a str, not unicode - for
+    intance, when assigning to __name__
+
+    If given a unicode string that can not be encoded with the given encoding
+    (which defaults to ascii), a UnicodeEncodeError will be raised
+    '''
+    if isinstance(input, unicode):
+        input = input.encode(encoding)
+    elif not isinstance(input, str):
+        raise TypeError("input %r was not a str or unicode object" % input)
+    return input
 
 def expandArgs( *args, **kwargs ) :
     """
