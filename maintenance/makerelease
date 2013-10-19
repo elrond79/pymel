@@ -106,11 +106,10 @@ fi
 
 git clone --shared $SOURCE $RELEASE
 
-#svn export https://pymel.googlecode.com/svn/trunk pymel
-#svn export https://pymel.googlecode.com/svn/docs pymel/docs
-
-# clean out 2011 stuff til it's released
-#rm $RELEASE/pymel/cache/*2011.*
+# compress the json caches... gzip will also effectively delete the original
+# .json files
+echo "compressing json caches"
+gzip -f $RELEASE/pymel/cache/*.json
 
 myrm $RELEASE/.git*
 myrm $RELEASE/.hg*
