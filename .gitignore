@@ -15,3 +15,4 @@
 /maintenance/release
 /docs/build
 /docs/source/generated
+/pymel/cache/*.gz
