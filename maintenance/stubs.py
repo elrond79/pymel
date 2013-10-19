@@ -368,7 +368,12 @@ class StubDoc(Doc):
         # add all the objects that we have names for / should be in this
         # module
         for name, obj in inspect.getmembers(this_module):
-            if name.startswith('__') and name.endswith('__'):
+            # ignore '__thing__' names, because they're usually python
+            # reserved crap...
+            # ...EXCEPT for __version__ in pymel/__init__.py, because the
+            # makerelease script checks for it...
+            if (name.startswith('__') and name.endswith('__')
+                    and name != '__version__'):
                 continue
             add_obj(obj, name)
 
