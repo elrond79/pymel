@@ -2136,27 +2136,6 @@ class testCase_sets(TestCaseExtended):
         self.assertEqual(len(mySet), 2)
 
 
-
-#class testCase_0_7_compatabilityMode(unittest.TestCase):
-#    # Just used to define a value that we know won't be stored in
-#    # 0_7_compatability mode...
-#    class NOT_SET(object): pass
-#
-#    def setUp(self):
-#        self.stored_0_7_compatability_mode = factories.pymel_options.get( '0_7_compatibility_mode', False)
-#        factories.pymel_options['0_7_compatibility_mode'] = True
-#
-#    def tearDown(self):
-#        if self.stored_0_7_compatability_mode == NOT_SET:
-#            del factories.pymel_options['0_7_compatibility_mode']
-#        else:
-#            factories.pymel_options['0_7_compatibility_mode'] = self.stored_0_7_compatability_mode
-#
-#    def test_nonexistantPyNode(self):
-#        # Will raise an error if not in 0_7_compatability_mode
-#        pm.PyNode('I_Dont_Exist_3142341324')
-#
-
 class testCase_apiArgConversion(unittest.TestCase):
     def test_unsignedIntRef_out_args(self):
         # the MFnLattice.getDivisions uses
