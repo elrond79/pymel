@@ -13,6 +13,26 @@ import pymel.internal.cmdcache as cmdcache
 import pymel.internal.apicache as apicache
 import pymel.util as util
 
+def convertCache(cacheClass, version=None, inSerialization=None,
+                 inCompression=None, inComboExtension=None,
+                 outSerialization=None, outCompression=None,
+                 outComboExtension=None):
+    '''Read in a cache of a certain serialization/compression/etc type, and
+    write out it's data using a different serialization/etc type.
+    '''
+    cache = cacheClass()
+    if version is not None:
+        cache.version = version
+    data = cache.read(serialization=inSerialization, compression=inCompression,
+                      comboExtension=inComboExtension)
+    cache.write(data, serialization=outSerialization,
+                compression=outCompression, comboExtension=outComboExtension)
+
+#  Pre-json conversion utilities -----------------------------------------------
+
+# These methods all predate the conversion of the caches to json, and have not
+# yet been confirmed to work after.
+
 def separateExampleCache():
     examples = {}
     succ = fail = 0
