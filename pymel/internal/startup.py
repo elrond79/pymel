@@ -790,6 +790,7 @@ class PymelCache(object):
                                    comboExtension=comboExtension, onDisk=True)
         if result is None:
             _logger.error("Unable to find %s on disk" % self.DESC)
+            return None
 
         path, serialization, compression = result
 
