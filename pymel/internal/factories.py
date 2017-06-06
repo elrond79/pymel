@@ -1884,15 +1884,27 @@ class ApiUndo(object):
         # alas, the condition command doesn't seem to work with python...
         # ...and it seems that in 2014, cmds.eval doesn't always work (??)...
         # so use api.MGlobal.executeCommand instead...
-        api.MGlobal.executeCommand('''
+        api.MGlobal.executeCommand(r'''
         global proc int _pymel_undoOrRedoAvailable()
         {
+            print("Setting UndoOrRedoAvailable");
+            print(" - ");
+            print("UndoAvailable: ");
+            print(isTrue("UndoAvailable"));
+            print(" - ");
+            print("RedoAvailable: ");
+            print(isTrue("RedoAvailable"));
+            print(" - ");
+            print(isTrue("UndoAvailable") || isTrue("RedoAvailable"));
+            print("\n");
             return (isTrue("UndoAvailable") || isTrue("RedoAvailable"));
         }
         ''', False, False)
+        print 'Initializing UndoOrRedoAvailable...'
         cmds.condition('UndoOrRedoAvailable', initialize=True,
                        d=['UndoAvailable', 'RedoAvailable'],
                        s='_pymel_undoOrRedoAvailable')
+        print 'Initial value: %s' % cmds.isTrue("UndoOrRedoAvailable")
 
         # Now, we install our callback...
         id = api.MConditionMessage.addConditionCallback('UndoOrRedoAvailable',
@@ -1900,6 +1912,7 @@ class ApiUndo(object):
         self.undoStateCallbackId = id
 
     def flushCallback(self, undoOrRedoAvailable, *args):
+        print "UndoOrRedoAvailable callback triggered: %s" % undoOrRedoAvailable
         if undoOrRedoAvailable:
             return
 

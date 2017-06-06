@@ -651,6 +651,11 @@ class testCase_nodesAndAttributes(unittest.TestCase):
 class testCase_apiUndo(unittest.TestCase):
 
     def setUp(self):
+        #  pymel_test_output.bat -s tests/test_general.py::testCase_nodesAndAttributes::test_transform_translation tests/test_general.py::testCase_apiUndo::test_undo_cmds
+        print "UndoAvailable:", cmds.isTrue('UndoAvailable')
+        print "RedoAvailable:", cmds.isTrue('RedoAvailable')
+        print "UndoOrRedoAvailable:", cmds.isTrue('UndoOrRedoAvailable')
+
         self.origUndoState = cmds.undoInfo(q=1, state=1)
         # reset all undo queues
         cmds.undoInfo(state=0)
