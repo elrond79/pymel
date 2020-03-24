@@ -542,7 +542,7 @@ class ApiDocParser(with_metaclass(ABCMeta, object)):
             return super(ApiDocParser, cls).__new__(cls)
 
     def __init__(self, apiModule, version=None, verbose=False, enumClass=tuple,
-                 docLocation=None, strict=False):
+                 docLocation=None, strict=True):
         self.version = versions.installName() if version is None else version
         self.apiModule = apiModule
         self.verbose = verbose
@@ -1104,6 +1104,8 @@ class ApiDocParser(with_metaclass(ABCMeta, object)):
     def parseBody(self):
         raise NotImplementedError()
 
+_missing_declarations = {}
+_missing_params = set()
 
 class XmlApiDocParser(ApiDocParser):
     _backslashTagRe = re.compile(r'(?:^|(?<=\s))\\(\S+)\s+', re.MULTILINE)
@@ -1438,7 +1440,12 @@ class XmlApiDocParser(ApiDocParser):
                     if paramName not in docs:
                         docs[paramName] = paramInfo['doc']
                         directions[paramName] = paramInfo['direction']
-                        missingParamDocs.remove(paramName)
+                        try:
+                            missingParamDocs.remove(paramName)
+                        except KeyError:
+                            global _missing_params
+                            _missing_params.update((self.fullMethodName(), paramName))
+                            raise
                         foundSomething = True
                 if not docs['<returnDoc>']:
                     docs['<returnDoc>'] = parsedTags['returnDoc']
@@ -1449,6 +1456,9 @@ class XmlApiDocParser(ApiDocParser):
         if len(paramDescriptions) > len(names):
             msg = "found more ({}) parameter descriptions than parameter declarations ({})".format(
                 len(paramDescriptions), len(names))
+            global _missing_declarations
+            _missing_declarations[self.fullMethodName()] = (len(paramDescriptions), len(names))
+            
             raise ValueError(self.formatMsg(msg))
 
         paramDescriptionNames = []

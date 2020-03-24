@@ -1327,7 +1327,7 @@ class ApiCache(BaseApiClassInfoCache):
                 try:
                     info = parser.parse(name)
                     self.apiClassInfo[name] = info
-                except (IOError, OSError, ValueError, IndexError) as e:
+                except (IOError, OSError, ValueError, IndexError, KeyError) as e:
                     import errno
                     baseMsg = "failed to parse docs for %r:" % name
                     if isinstance(e, (IOError, OSError)) and e.errno == errno.ENOENT:
@@ -1337,6 +1337,7 @@ class ApiCache(BaseApiClassInfoCache):
                         _logger.warning(baseMsg)
                         _logger.warning("%s: %s" % (name, e))
                     else:
+                        #raise
                         import traceback
                         _logger.error(baseMsg)
                         _logger.error(traceback.format_exc())
