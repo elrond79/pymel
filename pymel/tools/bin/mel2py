@@ -10,6 +10,7 @@ from __future__ import print_function
 # triggers the entire maya-initialization process) if we're just printing usage,
 # or there's an error processing command-line arguments.
 
+from builtins import super
 
 class Options(dict):
     """
@@ -17,7 +18,7 @@ class Options(dict):
     """
     def __setattr__(self, name, value):
         if hasattr(self, name):
-            super(self, Options).__setattr__(name, value)
+            super().__setattr__(name, value)
         else:
             self[name] = value
 

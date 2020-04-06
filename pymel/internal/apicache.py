@@ -4,9 +4,10 @@ from __future__ import absolute_import
 from __future__ import division
 
 # They will be imported / redefined later in Pymel, but we temporarily need them here
-from builtins import range
-from past.builtins import basestring
 from builtins import object
+from builtins import range
+from builtins import super
+from past.builtins import basestring
 import inspect
 import os
 import re
@@ -32,7 +33,7 @@ class ApiEnum(tuple):
         return '.'.join([str(x) for x in self])
 
     def __repr__(self):
-        return '%s( %s )' % (self.__class__.__name__, super(ApiEnum, self).__repr__())
+        return '%s( %s )' % (self.__class__.__name__, super().__repr__())
 
     def pymelName(self):
         import pymel.internal.factories as factories
@@ -969,7 +970,7 @@ class ApiMelBridgeCache(BaseApiClassInfoCache):
                 origLines = f.readlines()
             noComments = self.stripComments(origLines)
 
-        super(ApiMelBridgeCache, self).write(data, ext=ext)
+        super().write(data, ext=ext)
 
         if noComments is None:
             print("original {} had no comments, no need to strip".format(self.NAME))
@@ -1063,11 +1064,11 @@ class ApiCache(BaseApiClassInfoCache):
 
     @classmethod
     def allVersions(cls, allowEmpty=False):
-        return [x for x in super(ApiCache, cls).allVersions(allowEmpty=allowEmpty)
+        return [x for x in super().allVersions(allowEmpty=allowEmpty)
                 if x != 'MelBridge']
 
     def __init__(self, docLocation=None):
-        super(ApiCache, self).__init__()
+        super().__init__()
         for name in self.EXTRA_GLOBAL_NAMES:
             setattr(self, name, {})
         self.docLocation = docLocation
@@ -1095,12 +1096,12 @@ class ApiCache(BaseApiClassInfoCache):
             apiEnumsToApiTypes.clear()
             apiEnumsToApiTypes.update(newDict)
 
-        return super(ApiCache, self).fromRawData(data)
+        return super().fromRawData(data)
 
     def toRawData(self, data):
         # convert from class objects to string class names
         self._modifyApiTypes(data, inspect.isclass, startup.getImportableName)
-        return super(ApiCache, self).toRawData(data)
+        return super().toRawData(data)
 
     def _buildMayaToApiInfo(self, reservedOnly=False):
 

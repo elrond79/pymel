@@ -8,6 +8,7 @@ from __future__ import absolute_import
 from future.utils import PY2
 
 from builtins import str
+from builtins import super
 import re
 import inspect
 
@@ -40,12 +41,12 @@ class NameParser(str):
             newcls = cls
         else:
             newcls = _getParserClass(strObj)
-        self = super(NameParser, cls).__new__(newcls, strObj)
+        self = super().__new__(newcls, strObj)
         return self
 
     def __repr__(self):
         return "%s(%s)" % (self.__class__.__name__,
-                           super(NameParser, self).__repr__())
+                           super().__repr__())
 
     def __getattr__(self, attr):
         """
@@ -54,7 +55,7 @@ class NameParser(str):
 
         """
         if attr.startswith('__') and attr.endswith('__'):
-            return super(NameParser, self).__getattr__(attr)
+            return super().__getattr__(attr)
 
         return AttributeName('%s.%s' % (self, attr))
 

@@ -2,8 +2,9 @@ from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
 
-from builtins import range
 from builtins import object
+from builtins import range
+from builtins import super
 
 import sys
 import os
@@ -2208,7 +2209,7 @@ class test_exists(unittest.TestCase):
 class CapturingHandler(logging.Handler):
     '''Log handler that just records emitted messages'''
     def __init__(self, *args, **kwargs):
-        super(CapturingHandler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.capturedMessagesByLevel = {}
 
     def emit(self, record):

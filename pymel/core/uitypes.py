@@ -1,10 +1,11 @@
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
+from builtins import object
 from builtins import range
 from builtins import str
+from builtins import super
 from past.builtins import basestring
-from builtins import object
 import os
 import sys
 import re
@@ -955,7 +956,7 @@ class Window(PyUIContainer):
 #            return self
 
     def __exit__(self, type, value, traceback):
-        super(Window, self).__exit__(type, value, traceback)
+        super().__exit__(type, value, traceback)
         self.show()
 
     def show(self):
@@ -1567,7 +1568,7 @@ class AutoLayout(FormLayout):
 
     def __exit__(self, type, value, traceback):
         self.redistribute()
-        super(AutoLayout, self).__exit__(type, value, traceback)
+        super().__exit__(type, value, traceback)
 
 
 class RowLayout(Layout):
@@ -2587,11 +2588,11 @@ class OptionMenuGrp(RowLayout):
     # parent to this...
     def __enter__(self):
         self.menu().__enter__()
-        return super(OptionMenuGrp, self).__enter__()
+        return super().__enter__()
 
     def __exit__(self, type, value, traceback):
         self.menu().__exit__(type, value, traceback)
-        return super(OptionMenuGrp, self).__exit__(type, value, traceback)
+        return super().__exit__(type, value, traceback)
 # ------ Do not edit below this line --------
     __melcmd__ = staticmethod(windows.optionMenuGrp)
     __melcmd_isinfo__ = False
@@ -3335,7 +3336,7 @@ class AELoader(type):
     _loaded = []
 
     def __new__(cls, classname, bases, classdict):
-        newcls = super(AELoader, cls).__new__(cls, classname, bases, classdict)
+        newcls = super().__new__(cls, classname, bases, classdict)
         try:
             nodeType = newcls.nodeType()
         except ValueError:
@@ -4655,7 +4656,7 @@ class PathButtonGrp(TextFieldButtonGrp):
             cb = windows.Callback(setPathCB, name)
             cmds.textFieldButtonGrp(name, e=1, buttonCommand=cb)
 
-        return super(PathButtonGrp, cls).__new__(cls, name, create=False, *args, **kwargs)
+        return super().__new__(cls, name, create=False, *args, **kwargs)
 
     def setPath(self, path, **kwargs):
         kwargs['forceChangeCommand'] = kwargs.pop('fcc', kwargs.pop('forceChangeCommand', True))

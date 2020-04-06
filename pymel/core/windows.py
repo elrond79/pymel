@@ -7,6 +7,7 @@ from __future__ import division
 
 from builtins import range
 from builtins import str
+from builtins import super
 from past.builtins import basestring
 import re
 import sys
@@ -329,10 +330,10 @@ class PopupError(Exception):
         if isinstance(msgOrException, Exception):
             return msgOrException
         else:
-            return super(PopupError, cls).__new__(cls, msgOrException)
+            return super().__new__(cls, msgOrException)
 
     def __init__(self, msg, *args, **kwargs):
-        super(PopupError, self).__init__(msg)
+        super().__init__(msg)
 
 
 def promptForFolder():

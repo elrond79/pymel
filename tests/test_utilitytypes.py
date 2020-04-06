@@ -2,6 +2,7 @@ from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
 from builtins import object
+from builtins import super
 import unittest
 from pymel.util.testing import TestCaseExtended, setupUnittestModule, TestCase
 from pymel.util import utilitytypes
@@ -44,7 +45,7 @@ class __AbstractTestDict(TestBasicSingleton):
 class TestDictSingleton(__AbstractTestDict):
     theClass = DictSingleton
     def setUp(self):
-        super(TestDictSingleton, self).setUp()
+        super().setUp()
         self.theClass().clear()
 
     def testInitializeResets(self):

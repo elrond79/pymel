@@ -10,9 +10,10 @@ from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
 from builtins import next
-from builtins import str
-from builtins import zip
 from builtins import range
+from builtins import str
+from builtins import super
+from builtins import zip
 from past.builtins import basestring
 from builtins import object
 import sys
@@ -2191,11 +2192,11 @@ class MayaAttributeEnumError(MayaAttributeError):
     _objectDescription = 'Attribute Enum'
 
     def __init__(self, node=None, enum=None):
-        super(MayaAttributeEnumError, self).__init__(node)
+        super().__init__(node)
         self.enum = enum
 
     def __str__(self):
-        msg = super(MayaAttributeEnumError, self).__str__()
+        msg = super().__str__()
         if self.enum:
             msg += " - %r" % (self.enum,)
         return msg
@@ -2222,7 +2223,7 @@ class DeletedMayaNodeError(MayaNodeError):
             # Since the object has been deleted, normal name lookup for
             # DependNode may not work
             node = node._name
-        super(DeletedMayaNodeError, self).__init__(node=node)
+        super().__init__(node=node)
 
     def __str__(self):
         if self.node:
@@ -2594,7 +2595,7 @@ class PyNode(_util.ProxyUnicode):
             newcls = pymelType
 
         if newcls:
-            self = super(PyNode, cls).__new__(newcls)
+            self = super().__new__(newcls)
             self._name = name
             if attrNode:
                 self._node = attrNode
@@ -5188,7 +5189,7 @@ class DimensionedComponent(Component):
         # Component(dagPath):
         #    in this case, stored on self.__apiobjects__['MDagPath']
         #    (self._node will be None)
-        super(DimensionedComponent, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         isComplete = True
 
@@ -5241,7 +5242,7 @@ class DimensionedComponent(Component):
         #    ffd1LatticeShape.pt[*][*][*]
         # ...and so you must do
         #    ffd1LatticeShape.pt[*]
-        return (super(DimensionedComponent, self)._completeNameString() +
+        return (super()._completeNameString() +
                 ('[*]' * self.dimensions))
 
     def _makeComponentHandle(self):
@@ -5592,7 +5593,7 @@ class ComponentIndex(tuple):
 
     def __repr__(self):
         return "%s(%s, label=%r)" % (self.__class__.__name__,
-                                     super(ComponentIndex, self).__repr__(),
+                                     super().__repr__(),
                                      self.label)
 
 
@@ -5656,7 +5657,7 @@ class DiscreteComponent(DimensionedComponent):
 
     def __init__(self, *args, **kwargs):
         self.reset()
-        super(DiscreteComponent, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def _isCompleteMfnComp(self, mfncomp):
         # for components created through MSelectionList - ie, pm.PyNode('pCube1.vtx[0]')
@@ -5736,7 +5737,7 @@ class DiscreteComponent(DimensionedComponent):
                 mfnComp.addElements(*mayaArrays)
             return handle
         else:
-            return super(DiscreteComponent, self)._makeIndexedComponentHandle(indices)
+            return super()._makeIndexedComponentHandle(indices)
 
     @classmethod
     def _pyArrayToMayaArray(cls, pythonArray):
@@ -5937,7 +5938,7 @@ class ContinuousComponent(DimensionedComponent):
     VALID_SINGLE_INDEX_TYPES = (int, int, float, slice, HashableSlice)
 
     def _standardizeIndices(self, indexObjs, **kwargs):
-        return super(ContinuousComponent, self)._standardizeIndices(
+        return super()._standardizeIndices(
             indexObjs, allowIterable=False, **kwargs)
 
     def _sliceToIndices(self, sliceObj, partialIndex=None):
@@ -6108,7 +6109,7 @@ class MItComponent(Component):
     __slots__ = ()
 
     def __init__(self, *args, **kwargs):
-        super(MItComponent, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __apimit__(self, alwaysUnindexed=False):
         # Note - the iterator should NOT be stored, as if it gets out of date,
@@ -7036,7 +7037,7 @@ class MeshVertexFace(Component2D):
         if self.isComplete():
             return self._completeNameString()
         else:
-            return super(MeshVertexFace, self).__melobject__()
+            return super().__melobject__()
 
     def _dimLength(self, partialIndex):
         if len(partialIndex) == 0:
@@ -7051,7 +7052,7 @@ class MeshVertexFace(Component2D):
         if not partialIndex:
             # If we're just grabbing a slice of the first index,
             # the verts, we can proceed as normal...
-            for x in super(MeshVertexFace, self)._sliceToIndices(sliceObj, partialIndex):
+            for x in super()._sliceToIndices(sliceObj, partialIndex):
                 yield x
 
         # If we're iterating over the FACES attached to a given vertex,
@@ -7085,7 +7086,7 @@ class MeshVertexFace(Component2D):
         is not suitable as a __getitem__ indice.
         """
         if len(self._partialIndex) == 0:
-            return super(MeshVertexFace, self)._validateGetItemIndice(item)
+            return super()._validateGetItemIndice(item)
         if allowIterables and _util.isIterable(item):
             for _ in item:
                 self._validateGetItemIndice(item, allowIterables=False)
@@ -7383,7 +7384,7 @@ class NurbsSurfaceIsoparm(Component2DFloat):
     _apienum__ = _api.MFn.kIsoparmComponent
 
     def __init__(self, *args, **kwargs):
-        super(NurbsSurfaceIsoparm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         # Fix the bug where running:
         #
         # import maya.cmds as cmds
@@ -7478,7 +7479,7 @@ class NurbsSurfaceRange(NurbsSurfaceIsoparm):
              not isinstance(self._partialIndex[0], (slice, HashableSlice)))):
             return NurbsSurfaceIsoparm(self._node, self._partialIndex + (item,))
         else:
-            return super(NurbsSurfaceRange, self)._getitem_overrideable(item)
+            return super()._getitem_overrideable(item)
 
 
 class NurbsSurfaceCV(Component2D):
@@ -7580,7 +7581,7 @@ class ParticleComponent(Component1D):
 
     def attr(self, attr):
         try:
-            currIndex = super(ParticleComponent, self).currentItemIndex()
+            currIndex = super().currentItemIndex()
             return cmds.particle(self._node, q=1, attribute=attr,
                                  order=currIndex)
         except RuntimeError:
@@ -7729,7 +7730,7 @@ class AttributeSpec(with_metaclass(_factories.MetaMayaTypeRegistry, PyNode)):
             if isinstance(argObj, _api.MPlug):
                 argObj = argObj.attribute()
             args = (argObj,)
-        return super(AttributeSpec, cls).__new__(cls, *args, **kwargs)
+        return super().__new__(cls, *args, **kwargs)
 
     def __apiobject__(self):
         """

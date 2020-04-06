@@ -61,6 +61,7 @@ except ImportError:
 standard_library.install_aliases()
 from past.builtins import basestring
 from builtins import object
+from builtins import super
 __author_name__ = "Ben Finney"
 __author_email__ = "ben+python@benfinney.id.au"
 #__author__ = "%s <%s>" % (__author_name__, __author_email__) # confuses epydoc
@@ -338,7 +339,7 @@ class Enum(object):
             values[val] = value
             keyDict[key] = val
             try:
-                super(Enum, self).__setattr__(key, value)
+                super().__setattr__(key, value)
             except TypeError as e:
                 raise EnumBadKeyError(key)
 
@@ -353,10 +354,10 @@ class Enum(object):
         elif not isinstance(values, OrderedDict):
             values = OrderedDict((key, values[key]) for key in sorted(values))
 
-        super(Enum, self).__setattr__('_keys', keyDict)
-        super(Enum, self).__setattr__('_values', values)
-        super(Enum, self).__setattr__('_docs', docs)
-        super(Enum, self).__setattr__('_name', name)
+        super().__setattr__('_keys', keyDict)
+        super().__setattr__('_values', values)
+        super().__setattr__('_docs', docs)
+        super().__setattr__('_name', name)
 
     @property
     def name(self):
@@ -536,7 +537,7 @@ class Enum(object):
         "return a list of keys as strings"
         if not hasattr(self, '_keyStrings'):
             keyStrings = tuple(v.key for v in self._values.values())
-            super(Enum, self).__setattr__('_keyStrings', keyStrings)
+            super().__setattr__('_keyStrings', keyStrings)
         return self._keyStrings
 
 # strangely this is required to fix a crash when referencing pymel from mypy
@@ -599,15 +600,15 @@ class EnumDict(utilitytypes.EquivalencePairs):
                 byKey = keys
         else:
             byKey = dict((k, v) for v, k in enumerate(keys))
-        super(EnumDict, self).__init__(byKey)
+        super().__init__(byKey)
 
 #        for key, value in byKey.items():
 #            try:
-#                super(EnumDict, self).__setattr__(key, value)
+#                super().__setattr__(key, value)
 #            except TypeError, e:
 #                raise EnumBadKeyError(key)
 #
-#        super(EnumDict, self).__setattr__('_reverse', {})
+#        super().__setattr__('_reverse', {})
 #        self.update(byKey)
 #
 #    def __setattr__(self, name, value):
@@ -623,7 +624,7 @@ class EnumDict(utilitytypes.EquivalencePairs):
 #        raise EnumImmutableError(index)
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, super(EnumDict, self).__repr__())
+        return "%s(%s)" % (self.__class__.__name__, super().__repr__())
 
     def value(self, key):
         """

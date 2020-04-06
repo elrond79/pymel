@@ -6,6 +6,7 @@ from __future__ import division
 from __future__ import absolute_import
 from builtins import range
 from builtins import str
+from builtins import super
 from past.builtins import basestring
 import sys
 import os
@@ -2638,7 +2639,7 @@ class Shape(DagNode):
     def setParent(self, *args, **kwargs):
         if 'shape' not in kwargs and 's' not in kwargs:
             kwargs['s'] = True
-        super(Shape, self).setParent(*args, **kwargs)
+        super().setParent(*args, **kwargs)
 # ------ Do not edit below this line --------
     __melnode__ = u'shape'
     __slots__ = ()
@@ -5274,7 +5275,7 @@ class RenderLayer(DependNode):
         if not args and 'empty' not in kwargs and 'e' not in kwargs:
             # want to default to empty=False, to match former creation behavior
             kwargs['e'] = True
-        return super(RenderLayer, cls).__new__(cls, *args, **kwargs)
+        return super().__new__(cls, *args, **kwargs)
 
     def listMembers(self, fullNames=True):
         if fullNames:
@@ -5412,7 +5413,7 @@ class DisplayLayer(DependNode):
         if not args and 'empty' not in kwargs and 'e' not in kwargs:
             # want to default to empty=False, to match former creation behavior
             kwargs['e'] = True
-        return super(DisplayLayer, cls).__new__(cls, *args, **kwargs)
+        return super().__new__(cls, *args, **kwargs)
 
     def listMembers(self, fullNames=True):
         if fullNames:
@@ -5538,7 +5539,7 @@ class GeometryShape(Shape):
             return self.comp(attr)
         except general.MayaComponentError:
             # print "getting super", attr
-            return super(GeometryShape, self).__getattr__(attr)
+            return super().__getattr__(attr)
 # ------ Do not edit below this line --------
     __melnode__ = u'geometryShape'
     __slots__ = ()
@@ -9524,7 +9525,7 @@ class ShadingEngine(ObjectSet):
                     itemStr = 'item'
                 raise TypeError("%s has no shape, and %s objects cannot contain Transforms" % (itemStr, cls.__name__))
         else:
-            return super(ShadingEngine, cls)._getApiObjs(item, tryCast=tryCast)
+            return super()._getApiObjs(item, tryCast=tryCast)
 # ------ Do not edit below this line --------
     __melnode__ = u'shadingEngine'
     __slots__ = ()

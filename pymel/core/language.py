@@ -6,9 +6,10 @@ from __future__ import division
 from __future__ import absolute_import
 
 from builtins import map
-from builtins import range
-from past.builtins import basestring
 from builtins import object
+from builtins import range
+from builtins import super
+from past.builtins import basestring
 
 import collections
 
@@ -349,7 +350,7 @@ class MelGlobals(MutableMapping, _Parent):
 
         def __setitem__(self, index, value):
             _mm.eval(self._setItemCmd % (index, pythonToMel(value)))
-            super(MelGlobals.MelGlobalArray, self).__setitem__(index, value)
+            super().__setitem__(index, value)
         setItem = __setitem__
 
         def append(self, val):
@@ -469,7 +470,7 @@ class MelGlobals(MutableMapping, _Parent):
         return variable
 
     def get_dict(self, variable, default=None):
-        return super(MelGlobals, self).get(variable, default)
+        return super().get(variable, default)
 
     # this clashes with a standard dict's "get", which will not error if a dict
     # does not contain a key...

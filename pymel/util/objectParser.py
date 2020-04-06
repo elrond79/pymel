@@ -17,11 +17,12 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
 
+from past.builtins import basestring
 from past.builtins import cmp
+from builtins import object
 from builtins import map
 from builtins import str
-from past.builtins import basestring
-from builtins import object
+from builtins import super
 import functools
 import re
 import inspect
@@ -401,7 +402,7 @@ class Parsed(ProxyUni):
 
         if valid:
             # create a unicode object with appropriate string value
-            newobj = super(Parsed, cls).__new__(newcls)
+            newobj = super().__new__(newcls)
             newobj._name = strvalue
             # if debug: print "NAME", newobj, type(newobj), sub#, inspect.getmro(newobj)
             # set instance attributes
@@ -515,7 +516,7 @@ class Parser(object):
             parsercls.start = None
 
         # TODO : same for precedence rules
-        return super(Parser, cls).__new__(parsercls, *args, **kwargs)
+        return super().__new__(parsercls, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         self.errorcount = 0

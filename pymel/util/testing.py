@@ -1,8 +1,9 @@
 from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
-from builtins import zip
 from builtins import range
+from builtins import super
+from builtins import zip
 from past.builtins import basestring
 import sys
 import os
@@ -78,13 +79,13 @@ def doctestmod(*args, **kwargs):
 class MayaTestRunner(TextTestRunner):
 
     def __init__(self, stream=sys.stdout, descriptions=True, verbosity=2):
-        super(MayaTestRunner, self).__init__(stream=stream,
+        super().__init__(stream=stream,
                                              descriptions=descriptions,
                                              verbosity=verbosity)
 
     @doctestFriendly
     def run(self, *args, **kwargs):
-        super(MayaTestRunner, self).run(*args, **kwargs)
+        super().run(*args, **kwargs)
 
 
 def addFuncToModule(func, module):
@@ -340,7 +341,7 @@ class SuiteFromModule(TestSuite):
         Set testImport to True to have the suite automatically contain a test case that
         checks if we were able to find any tests in the given module.
         """
-        super(SuiteFromModule, self).__init__()
+        super().__init__()
         self._importError = None
 
         if isinstance(module, basestring):
@@ -394,7 +395,7 @@ class UnittestSuiteFromModule(SuiteFromModule):
 
     def __init__(self, moduleName, suiteFuncName=SUITE_FUNC_NAME, **kwargs):
         self.suiteFuncName = suiteFuncName
-        super(UnittestSuiteFromModule, self).__init__(moduleName, **kwargs)
+        super().__init__(moduleName, **kwargs)
 
     def _importSuite(self):
         theSuite = None
@@ -418,7 +419,7 @@ class DoctestSuiteFromModule(SuiteFromModule):
             alreadyRecursed = []
         self.alreadyRecursed = alreadyRecursed
         self.packageRecurse = packageRecurse
-        super(DoctestSuiteFromModule, self).__init__(moduleName, **kwargs)
+        super().__init__(moduleName, **kwargs)
 
     def _importSuite(self):
         theSuite = None

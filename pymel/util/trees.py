@@ -50,8 +50,9 @@ from __future__ import absolute_import
 # import functools as ftools
 from past.builtins import cmp
 from builtins import next
-from builtins import range
 from builtins import object
+from builtins import range
+from builtins import super
 from collections import *
 import inspect
 import warnings
@@ -763,7 +764,7 @@ class MetaTree(type):
         @mutabletree
         def _set_parent(self, parent):
             oldparent = self.parent
-            super(IndexedPyTree, self)._set_parent(parent)
+            super()._set_parent(parent)
             if parent != oldparent:
                 oldparent._index.pop(self._get_key())
                 for sub in self.preorder():
@@ -1433,7 +1434,7 @@ class MetaTree(type):
         # set class tree type
         newdict['_TreeType'] = treeType
         # delegate rest of the work to type.__new__
-        return super(MetaTree, mcl).__new__(mcl, classname, newbases, newdict)
+        return super().__new__(mcl, classname, newbases, newdict)
 
     # will get called after __new__
 #    def __init__(cls, name, bases, classdict) :
@@ -1679,7 +1680,7 @@ def treeFromIsChild(isChildFn, *elements):
 #        if not os.path.isdir(dir):
 #            raise ValueError("%s is not a valid directory" % dir)
 #
-#        super(DirTree, self).__init__()
+#        super().__init__()
 #
 #        if dir:
 #            basename = ""

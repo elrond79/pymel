@@ -2,8 +2,9 @@ from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
 
-from builtins import zip
 from builtins import object
+from builtins import super
+from builtins import zip
 import string
 import sys
 import textwrap
@@ -183,7 +184,7 @@ class RstDocstringBuilder(DocstringBuilder):
         return s
 
     def addFooter(self):
-        footer = super(RstDocstringBuilder, self).addFooter()
+        footer = super().addFooter()
 
         if self.cmdInfo.get('example', None):
             # docstring = ".. |create| image:: /images/create.gif\n.. |edit| image::

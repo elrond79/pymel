@@ -4,6 +4,7 @@ from __future__ import division
 
 from builtins import input
 from builtins import range
+from builtins import super
 
 from pymel.util.objectParser import *
 
@@ -478,7 +479,7 @@ class NameNumPart(NamePart):
             nargs = [Token(u"%s" % args[0], type='Num', pos=0)]
         else:
             nargs = list(args)
-        return super(NameNumPart, cls).__new__(cls, *nargs, **kwargs)
+        return super().__new__(cls, *nargs, **kwargs)
 
     @ property
     def value(self):
@@ -1161,7 +1162,7 @@ class NameIndex(NameParsed):
             nargs = [Token(u"[%s]" % args[0], type='Index', pos=0)]
         else:
             nargs = list(args)
-        return super(NameIndex, cls).__new__(cls, *nargs, **kwargs)
+        return super().__new__(cls, *nargs, **kwargs)
 
     @property
     def value(self):
@@ -1194,7 +1195,7 @@ class NameRangeIndex(NameParsed):
             nargs[Token(u"[%s:%s]" % (args[0], args[1]), type='RangeIndex', pos=0)]
         else:
             nargs = list(args)
-        return super(NameIndex, cls).__new__(cls, *nargs, **kwargs)
+        return super().__new__(cls, *nargs, **kwargs)
 
     @property
     def start(self):

@@ -39,11 +39,12 @@ from __future__ import print_function
 from __future__ import division
 
 from past.builtins import cmp
-from builtins import zip
+from builtins import object
 from builtins import range
 from builtins import str
+from builtins import super
+from builtins import zip
 from past.builtins import basestring
-from builtins import object
 import sys
 import os
 import warnings
@@ -240,11 +241,11 @@ class Namespace(str):
                     cmds.namespace(set=part)
                 current.setCurrent()
 
-        self = super(Namespace, cls).__new__(cls, namespace)
+        self = super().__new__(cls, namespace)
         return self
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, super(Namespace, self).__repr__())
+        return "%s(%s)" % (self.__class__.__name__, super().__repr__())
 
     def __add__(self, other):
         return "%s:%s" % (self.rstrip(':'), other.lstrip(":"))

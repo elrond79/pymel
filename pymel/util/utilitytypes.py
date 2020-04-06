@@ -14,6 +14,7 @@ if PY2:
 else:
     from collections.abc import Mapping
 from builtins import object
+from builtins import super
 import inspect
 import types
 import operator
@@ -627,7 +628,7 @@ class LazyLoadModule(types.ModuleType):
         if autoSubClass:
             subclassName = name.replace('.', '_') + cls.__name__
             cls = type(subclassName, (cls,), {})
-        return super(LazyLoadModule, cls).__new__(cls, name)
+        return super().__new__(cls, name)
 
     def __init__(self, name, contents, autoSubClass=True):
         types.ModuleType.__init__(self, name)
@@ -1109,7 +1110,7 @@ class EquivalencePairs(TwoWayDict):
 
     def __delitem__(self, key):
         if dict.__contains__(self, key):
-            super(EquivalencePairs, self).__delitem__(key)
+            super().__delitem__(key)
         elif key in self._reverse:
             dict.__delitem__(self, self[key])
             del self._reverse[key]
@@ -1118,7 +1119,7 @@ class EquivalencePairs(TwoWayDict):
 
     def __getitem__(self, key):
         if dict.__contains__(self, key):
-            return super(EquivalencePairs, self).__getitem__(key)
+            return super().__getitem__(key)
         elif key in self._reverse:
             return self._reverse[key]
         else:

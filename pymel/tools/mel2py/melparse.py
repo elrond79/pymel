@@ -11,10 +11,11 @@ from __future__ import division
 
 
 from builtins import filter
+from builtins import object
 from builtins import range
 from builtins import str
+from builtins import super
 from past.builtins import basestring
-from builtins import object
 import sys
 import os
 import re
@@ -2981,10 +2982,10 @@ class MelParseError(Exception):
         self.data = kwargs.pop('data', None)
         self.file = kwargs.pop('file', None)
         self.lexer = kwargs.pop('lexer', None)
-        super(MelParseError, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __str__(self):
-        base = super(MelParseError, self).__str__()
+        base = super().__str__()
         if self.file:
             base += " - Error parsing %s - check for syntax errors" % self.file
         if self.lexer and self.lexer.errors:

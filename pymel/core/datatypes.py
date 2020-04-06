@@ -8,6 +8,7 @@ from __future__ import absolute_import
 
 from builtins import map
 from builtins import range
+from builtins import super
 from past.builtins import basestring
 import os
 import sys
@@ -207,8 +208,7 @@ class MetaMayaArrayTypeWrapper(_factories.MetaMayaTypeRegistry):
                                  (classname, shape, size))
 
         # create the new class
-        newcls = super(MetaMayaArrayTypeWrapper, mcl).__new__(mcl, classname,
-                                                              bases, classdict)
+        newcls = super().__new__(mcl, classname, bases, classdict)
 
         try:
             apicls = newcls.apicls
@@ -351,7 +351,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
                     args = tuple(args)
                     if len(args) > len(self):
                         args = args[slice(self.shape[0])]
-                super(Vector, self).__init__(*args)
+                super().__init__(*args)
 
         if hasattr(cls, 'cnames') and len(set(cls.cnames) & set(kwargs)):
             # can also use the form <componentname>=<number>
@@ -493,7 +493,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         try:
             return bool(self.apicls.__eq__(self, other))
         except Exception:
-            return bool(super(Vector, self).__eq__(other))
+            return bool(super().__eq__(other))
 
     def __ne__(self, other):
         """ u.__ne__(v) <==> u != v
@@ -512,7 +512,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         try:
             return self.__class__._convert(self.apicls.__add__(self, other))
         except Exception:
-            return self.__class__._convert(super(Vector, self).__add__(other))
+            return self.__class__._convert(super().__add__(other))
 
     def __radd__(self, other):
         """ u.__radd__(v) <==> v+u
@@ -521,7 +521,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         try:
             return self.__class__._convert(self.apicls.__radd__(self, other))
         except Exception:
-            return self.__class__._convert(super(Vector, self).__radd__(other))
+            return self.__class__._convert(super().__radd__(other))
 
     def __iadd__(self, other):
         """ u.__iadd__(v) <==> u += v
@@ -538,7 +538,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         try:
             return self.__class__._convert(self.apicls.__sub__(self, other))
         except Exception:
-            return self.__class__._convert(super(Vector, self).__sub__(other))
+            return self.__class__._convert(super().__sub__(other))
 
     def __rsub__(self, other):
         """ u.__rsub__(v) <==> v-u
@@ -547,7 +547,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         try:
             return self.__class__._convert(self.apicls.__rsub__(self, other))
         except Exception:
-            return self.__class__._convert(super(Vector, self).__rsub__(other))
+            return self.__class__._convert(super().__rsub__(other))
 
     def __isub__(self, other):
         """ u.__isub__(v) <==> u -= v
@@ -564,7 +564,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         try:
             return self.__class__._convert(self.apicls.__truediv__(self, other))
         except Exception:
-            return self.__class__._convert(super(Vector, self).__truediv__(other))
+            return self.__class__._convert(super().__truediv__(other))
     __div__ = __truediv__
 
     def __rtruediv__(self, other):
@@ -574,7 +574,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         try:
             return self.__class__._convert(self.apicls.__rtruediv__(self, other))
         except Exception:
-            return self.__class__._convert(super(Vector, self).__rtruediv__(other))
+            return self.__class__._convert(super().__rtruediv__(other))
     __rdiv__ = __rtruediv__
 
     def __itruediv__(self, other):
@@ -597,7 +597,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
             res = self.apicls.__mul__(self, other)
             assert res is not NotImplemented
         except Exception:
-            res = super(Vector, self).__mul__(other)
+            res = super().__mul__(other)
         if util.isNumeric(res) or res is NotImplemented:
             return res
         else:
@@ -612,7 +612,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         try:
             res = self.apicls.__rmul__(self, other)
         except:
-            res = super(Vector, self).__rmul__(other)
+            res = super().__rmul__(other)
         if util.isNumeric(res):
             return res
         else:
@@ -660,7 +660,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         if isinstance(nself, Vector):
             return bool(nself.apicls.isEquivalent(nself, nother, tol))
         else:
-            return bool(super(Vector, nself).isEquivalent(nother, tol))
+            return bool(super().isEquivalent(nother, tol))
 
     def isParallel(self, other, tol=None):
         """ Returns true if both arguments considered as Vector are parallel within the specified tolerance """
@@ -669,13 +669,13 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         try:
             return bool(self.apicls.isParallel(Vector(self), Vector(other), tol))
         except:
-            return super(Vector, self).isParallel(other, tol)
+            return super().isParallel(other, tol)
 
     def distanceTo(self, other):
         try:
             return self.apicls.distanceTo(Point(self), Point(other))
         except:
-            return super(Vector, self).dist(other)
+            return super().dist(other)
 
     def length(self):
         """ Return the length of the vector """
@@ -767,21 +767,21 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         if isinstance(other, Matrix):
             return self.__class__._convert(Vector.apicls.transformAsNormal(Vector(self), Matrix(other)))
         else:
-            return self.__class__._convert(super(Vector, self).transformAsNormal(other))
+            return self.__class__._convert(super().transformAsNormal(other))
 
     def dot(self, other):
         """ dot product of two vectors """
         if isinstance(other, Vector):
             return Vector.apicls.__mul__(Vector(self), Vector(other))
         else:
-            return super(Vector, self).dot(other)
+            return super().dot(other)
 
     def cross(self, other):
         """ cross product, only defined for two 3D vectors """
         if isinstance(other, Vector):
             return self.__class__._convert(Vector.apicls.__xor__(Vector(self), Vector(other)))
         else:
-            return self.__class__._convert(super(Vector, self).cross(other))
+            return self.__class__._convert(super().cross(other))
 
     def axis(self, other, normalize=False):
         """ u.axis(v) <==> angle(u, v) --> Vector
@@ -793,7 +793,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
             else:
                 return self.__class__._convert(Vector.apicls.__xor__(Vector(self), Vector(other)))
         else:
-            return self.__class__._convert(super(Vector, self).axis(other, normalize))
+            return self.__class__._convert(super().axis(other, normalize))
 
     def angle(self, other):
         """ u.angle(v) <==> angle(u, v) --> float
@@ -802,7 +802,7 @@ class Vector(with_metaclass(MetaMayaArrayTypeWrapper, VectorN)):
         if isinstance(other, Vector):
             return Vector.apicls.angle(Vector(self), Vector(other))
         else:
-            return super(Vector, self).angle(other)
+            return super().angle(other)
 
     # methods without an api equivalent
 
@@ -931,7 +931,7 @@ class Point(Vector):
         try:
             return self.__class__._convert(self.apicls.__add__(self, other))
         except:
-            return self.__class__._convert(super(Vector, self).__add__(other))
+            return self.__class__._convert(super().__add__(other))
 
     def __radd__(self, other):
         """ u.__radd__(v) <==> v+u
@@ -942,7 +942,7 @@ class Point(Vector):
         try:
             return self.__class__._convert(self.apicls.__radd__(self, other))
         except:
-            return self.__class__._convert(super(Point, self).__radd__(other))
+            return self.__class__._convert(super().__radd__(other))
 
     def __iadd__(self, other):
         """ u.__iadd__(v) <==> u += v
@@ -1009,7 +1009,7 @@ class Point(Vector):
         if isinstance(nself, Point):
             return bool(nself.apicls.isEquivalent(nself, nother, tol))
         else:
-            return bool(super(Point, nself).isEquivalent(nother, tol))
+            return bool(super().isEquivalent(nother, tol))
 
     def axis(self, start, end, normalize=False):
         """ a.axis(b, c) --> Vector
@@ -1929,7 +1929,7 @@ class Matrix(with_metaclass(MetaMayaArrayTypeWrapper, MatrixN)):
         try:
             return bool(self.apicls.__eq__(self, other))
         except:
-            return bool(super(Matrix, self).__eq__(other))
+            return bool(super().__eq__(other))
 
     def __ne__(self, other):
         """ m.__ne__(v) <==> m != v
@@ -1948,7 +1948,7 @@ class Matrix(with_metaclass(MetaMayaArrayTypeWrapper, MatrixN)):
         try:
             return self.__class__._convert(self.apicls.__add__(self, other))
         except:
-            return self.__class__._convert(super(Matrix, self).__add__(other))
+            return self.__class__._convert(super().__add__(other))
 
     def __radd__(self, other):
         """ m.__radd__(v) <==> v+m
@@ -1957,7 +1957,7 @@ class Matrix(with_metaclass(MetaMayaArrayTypeWrapper, MatrixN)):
         try:
             return self.__class__._convert(self.apicls.__radd__(self, other))
         except:
-            return self.__class__._convert(super(Matrix, self).__radd__(other))
+            return self.__class__._convert(super().__radd__(other))
 
     def __iadd__(self, other):
         """ m.__iadd__(v) <==> m += v
@@ -1974,7 +1974,7 @@ class Matrix(with_metaclass(MetaMayaArrayTypeWrapper, MatrixN)):
         try:
             return self.__class__._convert(self.apicls.__sub__(self, other))
         except:
-            return self.__class__._convert(super(Matrix, self).__sub__(other))
+            return self.__class__._convert(super().__sub__(other))
 
     def __rsub__(self, other):
         """ m.__rsub__(v) <==> v-m
@@ -1983,7 +1983,7 @@ class Matrix(with_metaclass(MetaMayaArrayTypeWrapper, MatrixN)):
         try:
             return self.__class__._convert(self.apicls.__rsub__(self, other))
         except:
-            return self.__class__._convert(super(Matrix, self).__rsub__(other))
+            return self.__class__._convert(super().__rsub__(other))
 
     def __isub__(self, other):
         """ m.__isub__(v) <==> m -= v
@@ -2002,7 +2002,7 @@ class Matrix(with_metaclass(MetaMayaArrayTypeWrapper, MatrixN)):
         try:
             return self.__class__._convert(self.apicls.__mul__(self, other))
         except:
-            return self.__class__._convert(super(Matrix, self).__mul__(other))
+            return self.__class__._convert(super().__mul__(other))
 
     def __rmul__(self, other):
         """ m.__rmul__(x) <==> x*m
@@ -2013,7 +2013,7 @@ class Matrix(with_metaclass(MetaMayaArrayTypeWrapper, MatrixN)):
         try:
             return self.__class__._convert(self.apicls.__rmul__(self, other))
         except:
-            return self.__class__._convert(super(Matrix, self).__rmul__(other))
+            return self.__class__._convert(super().__rmul__(other))
 
     def __imul__(self, other):
         """ m.__imul__(n) <==> m *= n
@@ -2049,35 +2049,35 @@ class Matrix(with_metaclass(MetaMayaArrayTypeWrapper, MatrixN)):
         try:
             return self.__class__._convert(self.apicls.transpose(self))
         except:
-            return self.__class__._convert(super(Matrix, self).transpose())
+            return self.__class__._convert(super().transpose())
 
     def inverse(self):
         """ Returns the inverse Matrix """
         try:
             return self.__class__._convert(self.apicls.inverse(self))
         except:
-            return self.__class__._convert(super(Matrix, self).inverse())
+            return self.__class__._convert(super().inverse())
 
     def adjoint(self):
         """ Returns the adjoint (adjugate) Matrix """
         try:
             return self.__class__._convert(self.apicls.adjoint(self))
         except:
-            return self.__class__._convert(super(Matrix, self).adjugate())
+            return self.__class__._convert(super().adjugate())
 
     def homogenize(self):
         """ Returns a homogenized version of the Matrix """
         try:
             return self.__class__._convert(self.apicls.homogenize(self))
         except:
-            return self.__class__._convert(super(Matrix, self).homogenize())
+            return self.__class__._convert(super().homogenize())
 
     def det(self):
         """ Returns the determinant of this Matrix instance """
         try:
             return self.apicls.det4x4(self)
         except:
-            return super(Matrix, self).det()
+            return super().det()
 
     def det4x4(self):
         """ Returns the 4x4 determinant of this Matrix instance """
@@ -2495,7 +2495,7 @@ class TransformationMatrix(Matrix):
     def __getattribute__(self, name):
         if name in {'rotatePivot', 'rotatePivotTranslation', 'rotation', 'rotationOrientation', 'scalePivot', 'scalePivotTranslation', 'translation'} and name not in _f.EXCLUDE_METHODS:  # tmp fix
             raise AttributeError("'TransformationMatrix' object has no attribute '" + name + "'")
-        return super(TransformationMatrix, self).__getattribute__(name)
+        return super().__getattribute__(name)
 
     @_f.addApiDocs(_api.MTransformationMatrix, 'addRotation')
     def addRotation(self, rot, order, space):
@@ -2937,7 +2937,7 @@ class EulerRotation(with_metaclass(MetaMayaArrayTypeWrapper, Array)):
         if isinstance(other, self.apicls):
             return bool(self.apicls.__eq__(self, other))
         else:
-            return bool(super(EulerRotation, self).__eq__(other))
+            return bool(super().__eq__(other))
 
     def __ne__(self, other):
         """ u.__ne__(v) <==> u != v
@@ -2956,7 +2956,7 @@ class EulerRotation(with_metaclass(MetaMayaArrayTypeWrapper, Array)):
         try:
             return self.__class__._convert(self.apicls.__add__(self, other))
         except:
-            return self.__class__._convert(super(EulerRotation, self).__add__(other))
+            return self.__class__._convert(super().__add__(other))
 
     def __radd__(self, other):
         """ u.__radd__(v) <==> v+u
@@ -2965,7 +2965,7 @@ class EulerRotation(with_metaclass(MetaMayaArrayTypeWrapper, Array)):
         try:
             return self.__class__._convert(self.apicls.__radd__(self, other))
         except:
-            return self.__class__._convert(super(EulerRotation, self).__radd__(other))
+            return self.__class__._convert(super().__radd__(other))
 
     def __iadd__(self, other):
         """ u.__iadd__(v) <==> u += v
@@ -2982,7 +2982,7 @@ class EulerRotation(with_metaclass(MetaMayaArrayTypeWrapper, Array)):
         try:
             return self.__class__._convert(self.apicls.__sub__(self, other))
         except:
-            return self.__class__._convert(super(EulerRotation, self).__sub__(other))
+            return self.__class__._convert(super().__sub__(other))
 
     def __rsub__(self, other):
         """ u.__rsub__(v) <==> v-u
@@ -2991,7 +2991,7 @@ class EulerRotation(with_metaclass(MetaMayaArrayTypeWrapper, Array)):
         try:
             return self.__class__._convert(self.apicls.__rsub__(self, other))
         except:
-            return self.__class__._convert(super(EulerRotation, self).__rsub__(other))
+            return self.__class__._convert(super().__rsub__(other))
 
     def __isub__(self, other):
         """ u.__isub__(v) <==> u -= v
@@ -3008,7 +3008,7 @@ class EulerRotation(with_metaclass(MetaMayaArrayTypeWrapper, Array)):
         try:
             return self.__class__._convert(self.apicls.__truediv__(self, other))
         except:
-            return self.__class__._convert(super(EulerRotation, self).__truediv__(other))
+            return self.__class__._convert(super().__truediv__(other))
     __div__ = __truediv__
 
     def __rtruediv__(self, other):
@@ -3018,7 +3018,7 @@ class EulerRotation(with_metaclass(MetaMayaArrayTypeWrapper, Array)):
         try:
             return self.__class__._convert(self.apicls.__rtruediv__(self, other))
         except:
-            return self.__class__._convert(super(EulerRotation, self).__rtruediv__(other))
+            return self.__class__._convert(super().__rtruediv__(other))
     __rdiv__ = __rtruediv__
 
     def __itruediv__(self, other):
@@ -3040,7 +3040,7 @@ class EulerRotation(with_metaclass(MetaMayaArrayTypeWrapper, Array)):
         try:
             res = self.apicls.__mul__(self, other)
         except:
-            res = super(EulerRotation, self).__mul__(other)
+            res = super().__mul__(other)
         if util.isNumeric(res):
             return res
         else:
@@ -3055,7 +3055,7 @@ class EulerRotation(with_metaclass(MetaMayaArrayTypeWrapper, Array)):
         try:
             res = self.apicls.__rmul__(self, other)
         except:
-            res = super(EulerRotation, self).__rmul__(other)
+            res = super().__rmul__(other)
         if util.isNumeric(res):
             return res
         else:

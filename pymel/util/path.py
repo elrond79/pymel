@@ -48,9 +48,10 @@ from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
 
-from builtins import zip
 from past.builtins import basestring
 from builtins import object
+from builtins import super
+from builtins import zip
 import sys
 import warnings
 import os
@@ -194,12 +195,12 @@ class path(str):
     # --- Special Python methods.
 
     def __repr__(self):
-        return '%s(%s)' % (type(self).__name__, super(path, self).__repr__())
+        return '%s(%s)' % (type(self).__name__, super().__repr__())
 
     # Adding a path and a string yields a path.
     def __add__(self, more):
         try:
-            return self._next_class(super(path, self).__add__(more))
+            return self._next_class(super().__add__(more))
         except TypeError:  # Python bug
             return NotImplemented
 
@@ -1539,7 +1540,7 @@ class tempdir(path):
 
     def __new__(cls, *args, **kwargs):
         dirname = tempfile.mkdtemp(*args, **kwargs)
-        return super(tempdir, cls).__new__(cls, dirname)
+        return super().__new__(cls, dirname)
 
     def __init__(self, *args, **kwargs):
         pass

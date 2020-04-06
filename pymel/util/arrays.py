@@ -17,9 +17,10 @@ from __future__ import division
 # TODO : trim does preserve sub-element identity, should trimmed do a copy or deepcopy (currently deepcopy)?
 # resize / reshape should be checked and set to same behavior as well
 
-from builtins import zip
-from builtins import range
 from builtins import object
+from builtins import range
+from builtins import super
+from builtins import zip
 from future.utils import PY2, with_metaclass
 
 import operator
@@ -1704,7 +1705,7 @@ class Array(with_metaclass(metaReadOnlyAttr, object)):
                 next.data = [new]
             new = next
 
-        result = super(Array, cls).__new__(cls)
+        result = super().__new__(cls)
         result.data = new.data
         return result
 

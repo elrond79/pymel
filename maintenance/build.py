@@ -5,8 +5,9 @@ from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
 
-from builtins import zip
 from builtins import range
+from builtins import super
+from builtins import zip
 from past.builtins import basestring
 from builtins import object
 import compileall
@@ -1252,7 +1253,7 @@ class ApiMethodGenerator(MelMethodGenerator):
         parentApicls : Optional[Type]
         childClasses : Iterable[str]
         """
-        super(ApiMethodGenerator, self).__init__(classname, existingClass, parentClasses, parentMethods)
+        super().__init__(classname, existingClass, parentClasses, parentMethods)
         self.parentApicls = parentApicls
         self.existingClass = existingClass
         self.childClasses = childClasses
@@ -1572,7 +1573,7 @@ class ApiDataTypeGenerator(ApiMethodGenerator):
         """
         Add methods from API functions
         """
-        super(ApiDataTypeGenerator, self).getAPIData()
+        super().getAPIData()
 
         if self.removeAttrs:
             _logger.info("%s: removing attributes %s" % (self.classname, self.removeAttrs))
@@ -1671,7 +1672,7 @@ class NodeTypeGenerator(ApiMethodGenerator):
         """
         # mayaType must be set first
         self.mayaType = mayaType
-        super(NodeTypeGenerator, self).__init__(
+        super().__init__(
             classname, existingClass, parentClasses, parentMethods,
             parentApicls, childClasses)
 
@@ -1679,7 +1680,7 @@ class NodeTypeGenerator(ApiMethodGenerator):
         if self.mayaType is not None:
             return factories.toApiFunctionSet(self.mayaType)
 
-        return super(NodeTypeGenerator, self).getApiCls()
+        return super().getApiCls()
 
     def getTemplateData(self):
         self.setDefault('__slots__', ())
@@ -1743,7 +1744,7 @@ class NodeTypeGenerator(ApiMethodGenerator):
         self.getMELData()
 
         # FIXME:
-        # PyNodeType = super(ApiMethodGenerator, self).render()
+        # PyNodeType = super().render()
         # ParentPyNode = [x for x in bases if issubclass(x, util.ProxyUnicode)]
         # assert len(ParentPyNode), "%s did not have exactly one parent PyNode: %s (%s)" % (self.classname, ParentPyNode, self.bases)
         # factories.addPyNodeType(PyNodeType, ParentPyNode)

@@ -6,8 +6,9 @@ from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
 
-from builtins import zip
 from builtins import range
+from builtins import super
+from builtins import zip
 from past.builtins import basestring
 from builtins import object
 import argparse
@@ -51,7 +52,7 @@ class ApiEnum(tuple):
         return '.'.join([str(x) for x in self])
 
     def __repr__(self):
-        return '%s( %s )' % (self.__class__.__name__, super(ApiEnum, self).__repr__())
+        return '%s( %s )' % (self.__class__.__name__, super().__repr__())
 
     def pymelName(self):
         import pymel.internal.factories as factories
@@ -451,7 +452,7 @@ class CleanUpInvertibles(MethodTransform):
                 setter, getter = invertibles[i]
                 if setter not in methods or getter not in methods:
                     del invertibles[i]
-        super(CleanUpInvertibles, self)._doXform()
+        super()._doXform()
 
     def methodXform(self):
         inverse = self.methodInfo.get('inverse')

@@ -6,10 +6,11 @@ from __future__ import division
 from __future__ import absolute_import
 
 # Built-in imports
-from builtins import zip
-from builtins import range
-from past.builtins import basestring
 from builtins import object
+from builtins import range
+from builtins import super
+from builtins import zip
+from past.builtins import basestring
 from future.utils import with_metaclass
 import re
 import types
@@ -2380,7 +2381,7 @@ class ApiRedoUndoItem(ApiUndoItem):
 
     def __init__(self, redoer, redoArgs, undoer, undoArgs, redoKwargs=None,
                  undoKwargs=None):
-        super(ApiRedoUndoItem, self).__init__(redoer, redoArgs, undoArgs,
+        super().__init__(redoer, redoArgs, undoArgs,
                                               redoKwargs=redoKwargs,
                                               undoKwargs=undoKwargs)
         self._undoer = undoer
@@ -2409,7 +2410,7 @@ class MAnimCurveChangeUndoItem(ApiRedoUndoItem):
     __slots__ = ['_curveChange']
 
     def __init__(self, curveChangeObj):
-        super(MAnimCurveChangeUndoItem, self).__init__(
+        super().__init__(
             curveChangeObj.redoIt, (), curveChangeObj.undoIt, ())
         self._curveChange = curveChangeObj
 
@@ -2992,7 +2993,7 @@ class MetaMayaTypeRegistry(util.metaReadOnlyAttr):
         if not proxy and apicls is not None and apicls not in bases:
             bases = bases + (apicls,)
 
-        newcls = super(MetaMayaTypeRegistry, cls).__new__(cls, classname, bases, classdict)
+        newcls = super().__new__(cls, classname, bases, classdict)
 
         nodeType = getattr(newcls, '__melnode__', None)
         if nodeType and classname not in pymelTypeNameToMayaTypeName:
@@ -3206,7 +3207,7 @@ class MetaMayaTypeWrapper(MetaMayaTypeRegistry):
             #         classdict['__getattribute__'] = __getattribute__
 
         # create the new class
-        newcls = super(MetaMayaTypeWrapper, cls).__new__(cls, classname, bases, classdict)
+        newcls = super().__new__(cls, classname, bases, classdict)
 
         # shortcut for ensuring that our class constants are the same type as the class we are creating
         def makeClassConstant(attr):
@@ -3342,7 +3343,7 @@ class _MetaMayaCommandWrapper(MetaMayaTypeWrapper):
     def __new__(cls, classname, bases, classdict):
         #_logger.debug( '_MetaMayaCommandWrapper: %s' % classname )
 
-        newcls = super(_MetaMayaCommandWrapper, cls).__new__(cls, classname, bases, classdict)
+        newcls = super().__new__(cls, classname, bases, classdict)
 
         # -------------------------
         #   MEL Methods
@@ -3532,7 +3533,7 @@ class MetaMayaNodeWrapper(_MetaMayaCommandWrapper):
         if apicls is not None:
             classdict['__apicls__'] = apicls
 
-        PyNodeType = super(MetaMayaNodeWrapper, cls).__new__(cls, classname, bases, classdict)
+        PyNodeType = super().__new__(cls, classname, bases, classdict)
         return PyNodeType
 
     @classmethod
@@ -3575,7 +3576,7 @@ class MetaMayaUIWrapper(_MetaMayaCommandWrapper):
         # TODO: implement a option at the cmdlist level that triggers listForNone
         # TODO: create labelArray for *Grp ui elements, which passes to the correct arg ( labelArray3, labelArray4, etc ) based on length of passed array
 
-        return super(MetaMayaUIWrapper, cls).__new__(cls, classname, bases, classdict)
+        return super().__new__(cls, classname, bases, classdict)
 
     @classmethod
     def getMelCmd(cls, classdict):

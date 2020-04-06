@@ -4,6 +4,7 @@ from __future__ import division
 # Built-in imports
 from future.utils import PY2
 from builtins import range
+from builtins import super
 from past.builtins import basestring
 import os
 import re
@@ -1311,7 +1312,7 @@ class CmdCache(startup.SubItemCache):
         CmdExamplesCache().write(examples)
 
     def build(self):
-        super(CmdCache, self).build()
+        super().build()
 
         # corrections that are always made, to both loaded and freshly built caches
         util.mergeCascadingDicts(cmdlistOverrides, self.cmdlist)
