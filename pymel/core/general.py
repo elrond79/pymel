@@ -2595,7 +2595,7 @@ class PyNode(_util.ProxyUnicode):
             newcls = pymelType
 
         if newcls:
-            self = super().__new__(newcls)
+            self = super(PyNode, cls).__new__(newcls)
             self._name = name
             if attrNode:
                 self._node = attrNode
@@ -5189,7 +5189,7 @@ class DimensionedComponent(Component):
         # Component(dagPath):
         #    in this case, stored on self.__apiobjects__['MDagPath']
         #    (self._node will be None)
-        super().__init__(*args, **kwargs)
+        super(DimensionedComponent, self).__init__(*args, **kwargs)
 
         isComplete = True
 
@@ -5657,7 +5657,7 @@ class DiscreteComponent(DimensionedComponent):
 
     def __init__(self, *args, **kwargs):
         self.reset()
-        super().__init__(*args, **kwargs)
+        super(DiscreteComponent, self).__init__(*args, **kwargs)
 
     def _isCompleteMfnComp(self, mfncomp):
         # for components created through MSelectionList - ie, pm.PyNode('pCube1.vtx[0]')
@@ -7581,7 +7581,7 @@ class ParticleComponent(Component1D):
 
     def attr(self, attr):
         try:
-            currIndex = super().currentItemIndex()
+            currIndex = super(ParticleComponent, self).currentItemIndex()
             return cmds.particle(self._node, q=1, attribute=attr,
                                  order=currIndex)
         except RuntimeError:
