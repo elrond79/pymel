@@ -33,6 +33,14 @@ FLAGMODES = ('create', 'query', 'edit', 'multiuse')
 
 _logger = plogging.getLogger(__name__)
 
+class MissingParamDeclaration(Exception):
+    def __init__(self, msg, methodname):
+        self.msg = msg
+        self.methodname = methodname
+
+    def __str__(self):
+        return self.msg
+
 
 def mayaIsRunning():
     # type: () -> bool
@@ -956,6 +964,9 @@ class ApiDocParser(with_metaclass(ABCMeta, object)):
             import traceback
             _logger.error(self.formatMsg(traceback.format_exc()))
             return
+        except MissingParamDeclaration as e:
+            _missing_param_declarations.append(e.methodname)
+            return
 
         argInfo = {}
         argList = []
@@ -1106,6 +1117,7 @@ class ApiDocParser(with_metaclass(ABCMeta, object)):
 
 _missing_declarations = {}
 _missing_params = set()
+_missing_param_declarations = []
 
 class XmlApiDocParser(ApiDocParser):
     _backslashTagRe = re.compile(r'(?:^|(?<=\s))\\(\S+)\s+', re.MULTILINE)
@@ -1487,7 +1499,8 @@ class XmlApiDocParser(ApiDocParser):
                 else:
                     # otherwise, we have a totally unexpected name...
                     msg = "Found parameter description with name {}, but no matching declaration".format(name)
-                    raise ValueError(self.formatMsg(msg))
+                    raise MissingParamDeclaration(self.formatMsg(msg),
+                                                  self.fullMethodName())
             else:
                 foundParamNameOnce[name] = i
 
